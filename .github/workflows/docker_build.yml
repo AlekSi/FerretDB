@@ -43,11 +43,6 @@ jobs:
         id: extract-docker-tag
         uses: FerretDB/github-actions/extract-docker-tag@main
 
-      - name: Build and push images with tag "${{ env.DOCKER_TAG }}"
-        run: make docker-push
-        env:
-          DOCKER_TAG: ${{ steps.extract-docker-tag.outputs.tag }}
-
       - name: Build OCI image locally with tag "${{ env.DOCKER_TAG }}"
         run: make docker-oci
         env:

@@ -51,6 +51,6 @@ jobs:
       - name: Upload resulting OCI image
         uses: actions/upload-artifact@v2
         with:
-          name: oci-img-${{ steps.extract-docker-tag.outputs.tag }}
-          path: output/dev-ferretdb-${{ steps.extract-docker-tag.outputs.tag }}.tar
+          name: dev-ferretdb-${{ steps.extract-docker-tag.outputs.tag }}.tar
+          path: dev-ferretdb-${{ steps.extract-docker-tag.outputs.tag }}.tar
           retention-days: 7

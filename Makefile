@@ -99,7 +99,7 @@ docker-push:
 
 docker-oci: docker-build
 	test $(DOCKER_TAG)
-	docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=ghcr.io/ferretdb/ferretdb:$(DOCKER_TAG) -o type=oci,dest=ferretdb_${DOCKER_TAG}.tar .
+	docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=ghcr.io/ferretdb/ferretdb:$(DOCKER_TAG) -o type=oci,dest=dev-ferretdb-${DOCKER_TAG}.tar .
 
 docker-import-oci:
 	test ${DOCKER_TAG}

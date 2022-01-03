@@ -54,3 +54,15 @@ jobs:
         run: make docker-push
         env:
           DOCKER_TAG: ${{ steps.extract-docker-tag.outputs.tag }}
+
+      - name: Build OCI image locally with tag "${{ env.DOCKER_TAG }}"
+        run: make docker-oci
+        env:
+          DOCKER_TAG: ${{ steps.extract-docker-tag.outputs.tag }}
+
+      - name: Upload resulting OCI image
+        uses: actions/upload-artifact@v2
+        with:
+          name: oci-img-${{ steps.extract-docker-tag.outputs.tag }}
+          path: output/dev-ferretdb-${{ steps.extract-docker-tag.outputs.tag }}.tar
+          retention-days: 7

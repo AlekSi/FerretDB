@@ -92,9 +92,19 @@ docker-build: build-testcover
 docker-local: docker-build
 	docker buildx build --builder=ferretdb --tag=ghcr.io/ferretdb/ferretdb:local --load .
 
-docker-push: docker-build
+docker-push:
 	test $(DOCKER_TAG)
-	docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=ghcr.io/ferretdb/ferretdb:$(DOCKER_TAG) --push .
+	#docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=ghcr.io/ferretdb/ferretdb:$(DOCKER_TAG) --push .
+	docker push ghcr.io/ferretdb/ferretdb:$(DOCKER_TAG)
+
+docker-oci: docker-build
+	test $(DOCKER_TAG)
+	docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=ghcr.io/ferretdb/ferretdb:$(DOCKER_TAG) -o type=oci,dest=ferretdb_${DOCKER_TAG}.tar .
+
+docker-import-oci:
+	test ${DOCKER_TAG}
+	test -f ferretdb_${DOCKER_TAG}.tar
+	cat ferretdb_${DOCKER_TAG}.tar | docker import - ghcr.io/ferretdb/ferretdb
 
 bin/golangci-lint:
 	$(MAKE) init

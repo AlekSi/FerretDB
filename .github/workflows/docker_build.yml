@@ -41,7 +41,7 @@ jobs:
 
       - name: Extract Docker image tag
         id: extract-docker-tag
-        uses: FerretDB/github-actions/extract-docker-tag@main
+        uses: pboros/github-actions/extract-docker-tag@main
 
       - name: Build OCI image locally with tag "${{ env.DOCKER_TAG }}"
         run: make docker-oci

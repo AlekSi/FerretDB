@@ -1,9 +1,9 @@
 ---
-name: Docker Push
+name: docker_push_oci_image
 
 on:
   workflow_run:
-    workflows: [Docker Build]
+    workflows: [docker_build_oci_image]
     types:
       - completed
 

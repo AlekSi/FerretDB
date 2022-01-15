@@ -1,5 +1,5 @@
 ---
-name: Docker Build
+name: docker_build_oci_image
 
 on:
   push:

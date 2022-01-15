@@ -14,8 +14,8 @@ env:
   GOPROXY: https://proxy.golang.org # remove direct
 
 jobs:
-  build:
-    name: Build
+  docker_push_oci_image:
+    name: docker_push_oci_image
     runs-on: ubuntu-20.04
 
     steps:

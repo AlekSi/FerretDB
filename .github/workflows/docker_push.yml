@@ -39,7 +39,7 @@ jobs:
 
       - name: Extract Docker image tag
         id: extract-docker-tag
-        uses: FerretDB/github-actions/extract-docker-tag@main
+        uses: pboros/github-actions/extract-docker-tag@main
 
       - name: Download OCI image
         uses: actions/download-artifact@v2

@@ -1,13 +1,11 @@
 ---
-name: Docker
+name: Docker Push
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - v[0-9]+.[0-9]+.[0-9]+*
-  pull_request:
+  workflow_run:
+    workflows: [Docker Build]
+    types:
+      - completed
 
 env:
   GOPATH: /home/runner/go
@@ -53,4 +51,3 @@ jobs:
 
       - name: Push image
         run: make docker-push
-      

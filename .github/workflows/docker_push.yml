@@ -3,7 +3,7 @@ name: docker_push_oci_image
 
 on:
   workflow_run:
-    workflows: [docker_build_oci_image]
+    workflows: ["docker_build_oci_image"]
 
 env:
   GOPATH: /home/runner/go

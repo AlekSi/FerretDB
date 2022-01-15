@@ -90,11 +90,21 @@ docker-build: build-testcover
 	env GOOS=linux GOARCH=amd64 GOAMD64=v2 go test -c -o=bin/ferretdb-amd64 -trimpath -tags=testcover -coverpkg=./... ./cmd/ferretdb
 
 docker-local: docker-build
-	docker buildx build --builder=ferretdb --tag=ghcr.io/ferretdb/ferretdb:local --load .
+	docker buildx build --builder=ferretdb --tag=ghcr.io/pboros/ferretdb:local --load .
 
-docker-push: docker-build
+docker-push:
 	test $(DOCKER_TAG)
-	docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=ghcr.io/ferretdb/ferretdb:$(DOCKER_TAG) --push .
+	#docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=ghcr.io/pboros/ferretdb:$(DOCKER_TAG) --push .
+	docker push ghcr.io/pboros/ferretdb:$(DOCKER_TAG)
+
+docker-oci: docker-build
+	test $(DOCKER_TAG)
+	docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=ghcr.io/pboros/ferretdb:$(DOCKER_TAG) -o type=oci,dest=dev-ferretdb-${DOCKER_TAG}.tar .
+
+docker-import-oci:
+	test ${DOCKER_TAG}
+	test -f ferretdb_${DOCKER_TAG}.tar
+	cat ferretdb_${DOCKER_TAG}.tar | docker import - ghcr.io/pboros/ferretdb
 
 bin/golangci-lint:
 	$(MAKE) init

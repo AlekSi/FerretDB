@@ -23,43 +23,44 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-20.04
-    if: contains(github.event.pull_request.labels.*.name, 'trust')
+    if: github.event_name != 'pull_request_target' || contains(github.event.pull_request.labels.*.name, 'trust')
 
     steps:
       - name: Dump GitHub context
         run: echo '${{ toJSON(github) }}'
 
-      # - name: Checkout code
-      #   uses: actions/checkout@v2
-      #   with:
-      #     fetch-depth: 0
+      - name: Checkout code
+        if: github.event_name != 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
-      # - name: Setup Go
-      #   uses: FerretDB/github-actions/setup-go@main
-      #   with:
-      #     cache-key: build
+      - name: Checkout pull request code
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
-      # - name: Initialize Docker Buildx builder
-      #   run: make docker-init
+      - name: Setup Go
+        uses: FerretDB/github-actions/setup-go@main
+        with:
+          cache-key: build
 
-      # - name: Extract Docker image name and tag
-      #   id: extract-docker-tag
-      #   uses: FerretDB/github-actions/extract-docker-tag@main
+      - name: Initialize Docker Buildx builder
+        run: make docker-init
 
-      # - name: Build Docker image ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
-      #   run: make docker-oci
-      #   env:
-      #     DOCKER_IMAGE: ${{ steps.extract-docker-tag.outputs.image }}
-      #     DOCKER_TAG: ${{ steps.extract-docker-tag.outputs.tag }}
+      - name: Extract Docker image name and tag
+        id: extract-docker-tag
+        uses: FerretDB/github-actions/extract-docker-tag@main
 
-      # - name: Upload resulting OCI image
-      #   uses: actions/upload-artifact@v2
-      #   with:
-      #     name: dev-ferretdb-${{ steps.extract-docker-tag.outputs.tag }}.tar
-      #     path: dev-ferretdb-${{ steps.extract-docker-tag.outputs.tag }}.tar
-      #     retention-days: 7
+      - name: Build Docker image ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+        run: make docker-push
+        env:
+          DOCKER_IMAGE: ${{ steps.extract-docker-tag.outputs.image }}
+          DOCKER_TAG: ${{ steps.extract-docker-tag.outputs.tag }}
 
-      # - name: Check dirty
-      #   run: |
-      #     git status
-      #     git diff --exit-code
+      - name: Check dirty
+        run: |
+          git status
+          git diff --exit-code

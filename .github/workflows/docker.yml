@@ -23,7 +23,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-20.04
-    # if: contains(github.event.pull_request.labels.*.name, 'trust')
+    if: contains(github.event.pull_request.labels.*.name, 'trust')
 
     steps:
       - name: Dump GitHub context

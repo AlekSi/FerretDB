@@ -16,19 +16,17 @@ package bson
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/json"
 
 	"github.com/FerretDB/FerretDB/internal/util/lazyerrors"
 )
 
-// Bool represents BSON Bool data type.
-type Bool bool
+// boolType represents BSON Boolean type.
+type boolType bool
 
-func (b *Bool) bsontype() {}
+func (b *boolType) bsontype() {}
 
 // ReadFrom implements bsontype interface.
-func (b *Bool) ReadFrom(r *bufio.Reader) error {
+func (b *boolType) ReadFrom(r *bufio.Reader) error {
 	v, err := r.ReadByte()
 	if err != nil {
 		return lazyerrors.Errorf("bson.Bool.ReadFrom: %w", err)
@@ -47,7 +45,7 @@ func (b *Bool) ReadFrom(r *bufio.Reader) error {
 }
 
 // WriteTo implements bsontype interface.
-func (b Bool) WriteTo(w *bufio.Writer) error {
+func (b boolType) WriteTo(w *bufio.Writer) error {
 	v, err := b.MarshalBinary()
 	if err != nil {
 		return lazyerrors.Errorf("bson.Bool.WriteTo: %w", err)
@@ -62,7 +60,7 @@ func (b Bool) WriteTo(w *bufio.Writer) error {
 }
 
 // MarshalBinary implements bsontype interface.
-func (b Bool) MarshalBinary() ([]byte, error) {
+func (b boolType) MarshalBinary() ([]byte, error) {
 	if b {
 		return []byte{1}, nil
 	} else {
@@ -70,27 +68,7 @@ func (b Bool) MarshalBinary() ([]byte, error) {
 	}
 }
 
-// UnmarshalJSON implements bsontype interface.
-func (b *Bool) UnmarshalJSON(data []byte) error {
-	if bytes.Equal(data, []byte("null")) {
-		panic("null data")
-	}
-
-	var bb bool
-	if err := json.Unmarshal(data, &bb); err != nil {
-		return err
-	}
-
-	*b = Bool(bb)
-	return nil
-}
-
-// MarshalJSON implements bsontype interface.
-func (b Bool) MarshalJSON() ([]byte, error) {
-	return json.Marshal(bool(b))
-}
-
 // check interfaces
 var (
-	_ bsontype = (*Bool)(nil)
+	_ bsontype = (*boolType)(nil)
 )

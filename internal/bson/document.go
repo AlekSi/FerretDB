@@ -18,7 +18,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -28,18 +27,18 @@ import (
 )
 
 const (
-	MaxDocumentLen = 16777216
-
 	minDocumentLen = 5
 )
 
 // Common interface with types.Document.
+//
+// TODO Remove it.
 type document interface {
 	Map() map[string]any
 	Keys() []string
 }
 
-// Document represents BSON Document data type.
+// Document represents BSON Document type.
 type Document struct {
 	m    map[string]any
 	keys []string
@@ -47,17 +46,12 @@ type Document struct {
 
 // ConvertDocument converts types.Document to bson.Document and validates it.
 // It references the same data without copying it.
+//
+// TODO Remove it.
 func ConvertDocument(d document) (*Document, error) {
 	doc := &Document{
 		m:    d.Map(),
 		keys: d.Keys(),
-	}
-
-	if doc.m == nil {
-		doc.m = map[string]any{}
-	}
-	if doc.keys == nil {
-		doc.keys = []string{}
 	}
 
 	// for validation
@@ -95,7 +89,7 @@ func (doc *Document) ReadFrom(r *bufio.Reader) error {
 	if err := binary.Read(r, binary.LittleEndian, &l); err != nil {
 		return lazyerrors.Errorf("bson.Document.ReadFrom (binary.Read): %w", err)
 	}
-	if l < minDocumentLen || l > MaxDocumentLen {
+	if l < minDocumentLen || l > types.MaxDocumentLen {
 		return lazyerrors.Errorf("bson.Document.ReadFrom: invalid length %d", l)
 	}
 
@@ -111,8 +105,6 @@ func (doc *Document) ReadFrom(r *bufio.Reader) error {
 	}
 
 	bufr := bufio.NewReader(bytes.NewReader(b[4:]))
-	doc.m = map[string]any{}
-	doc.keys = make([]string, 0, 2)
 
 	for {
 		t, err := bufr.ReadByte()
@@ -135,6 +127,10 @@ func (doc *Document) ReadFrom(r *bufio.Reader) error {
 
 		doc.keys = append(doc.keys, string(ename))
 
+		if doc.m == nil {
+			doc.m = map[string]any{}
+		}
+
 		switch tag(t) {
 		case tagDocument:
 			// TODO check maximum nesting
@@ -151,7 +147,7 @@ func (doc *Document) ReadFrom(r *bufio.Reader) error {
 		case tagArray:
 			// TODO check maximum nesting
 
-			var v Array
+			var v arrayType
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (Array): %w", err)
 			}
@@ -159,21 +155,21 @@ func (doc *Document) ReadFrom(r *bufio.Reader) error {
 			doc.m[string(ename)] = &a
 
 		case tagDouble:
-			var v Double
+			var v doubleType
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (Double): %w", err)
 			}
 			doc.m[string(ename)] = float64(v)
 
 		case tagString:
-			var v String
+			var v stringType
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (String): %w", err)
 			}
 			doc.m[string(ename)] = string(v)
 
 		case tagBinary:
-			var v Binary
+			var v binaryType
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (Binary): %w", err)
 			}
@@ -183,52 +179,53 @@ func (doc *Document) ReadFrom(r *bufio.Reader) error {
 			return lazyerrors.Errorf("bson.Document.ReadFrom: unhandled element type `Undefined (value) — Deprecated`")
 
 		case tagObjectID:
-			var v ObjectID
+			var v objectIDType
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (ObjectID): %w", err)
 			}
 			doc.m[string(ename)] = types.ObjectID(v)
 
 		case tagBool:
-			var v Bool
+			var v boolType
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (Bool): %w", err)
 			}
 			doc.m[string(ename)] = bool(v)
 
 		case tagDateTime:
-			var v DateTime
+			var v dateTimeType
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (DateTime): %w", err)
 			}
 			doc.m[string(ename)] = time.Time(v)
 
 		case tagNull:
-			doc.m[string(ename)] = nil
+			// skip calling ReadFrom that does nothing
+			doc.m[string(ename)] = types.Null
 
 		case tagRegex:
-			var v Regex
+			var v regexType
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (Regex): %w", err)
 			}
 			doc.m[string(ename)] = types.Regex(v)
 
 		case tagInt32:
-			var v Int32
+			var v int32Type
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (Int32): %w", err)
 			}
 			doc.m[string(ename)] = int32(v)
 
 		case tagTimestamp:
-			var v Timestamp
+			var v timestampType
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (Timestamp): %w", err)
 			}
 			doc.m[string(ename)] = types.Timestamp(v)
 
 		case tagInt64:
-			var v Int64
+			var v int64Type
 			if err := v.ReadFrom(bufr); err != nil {
 				return lazyerrors.Errorf("bson.Document.ReadFrom (Int64): %w", err)
 			}
@@ -276,7 +273,7 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 		}
 
 		switch elV := elV.(type) {
-		case types.Document:
+		case *types.Document:
 			bufw.WriteByte(byte(tagDocument))
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
@@ -294,7 +291,7 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := Array(*elV).WriteTo(bufw); err != nil {
+			if err := arrayType(*elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
@@ -303,7 +300,7 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := Double(elV).WriteTo(bufw); err != nil {
+			if err := doubleType(elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
@@ -312,7 +309,7 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := String(elV).WriteTo(bufw); err != nil {
+			if err := stringType(elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
@@ -321,7 +318,7 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := Binary(elV).WriteTo(bufw); err != nil {
+			if err := binaryType(elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
@@ -330,7 +327,7 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := ObjectID(elV).WriteTo(bufw); err != nil {
+			if err := objectIDType(elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
@@ -339,7 +336,7 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := Bool(elV).WriteTo(bufw); err != nil {
+			if err := boolType(elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
@@ -348,22 +345,23 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := DateTime(elV).WriteTo(bufw); err != nil {
+			if err := dateTimeType(elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
-		case nil:
+		case types.NullType:
 			bufw.WriteByte(byte(tagNull))
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
+			// skip calling WriteTo that does nothing
 
 		case types.Regex:
 			bufw.WriteByte(byte(tagRegex))
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := Regex(elV).WriteTo(bufw); err != nil {
+			if err := regexType(elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
@@ -372,7 +370,7 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := Int32(elV).WriteTo(bufw); err != nil {
+			if err := int32Type(elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
@@ -381,7 +379,7 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := Timestamp(elV).WriteTo(bufw); err != nil {
+			if err := timestampType(elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
@@ -390,7 +388,7 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 			if err := ename.WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
-			if err := Int64(elV).WriteTo(bufw); err != nil {
+			if err := int64Type(elV).WriteTo(bufw); err != nil {
 				return nil, lazyerrors.Error(err)
 			}
 
@@ -414,214 +412,6 @@ func (doc Document) MarshalBinary() ([]byte, error) {
 		panic(fmt.Sprintf("got %d, expected %d", res.Len(), l))
 	}
 	return res.Bytes(), nil
-}
-
-func unmarshalJSONValue(data []byte) (any, error) {
-	var v any
-	r := bytes.NewReader(data)
-	dec := json.NewDecoder(r)
-	err := dec.Decode(&v)
-	if err != nil {
-		return nil, err
-	}
-	if err := checkConsumed(dec, r); err != nil {
-		return nil, lazyerrors.Error(err)
-	}
-
-	var res any
-	switch v := v.(type) {
-	case map[string]any:
-		switch {
-		case v["$f"] != nil:
-			var o Double
-			err = o.UnmarshalJSON(data)
-			res = float64(o)
-		case v["$k"] != nil:
-			var o Document
-			err = o.UnmarshalJSON(data)
-			if err == nil {
-				res, err = types.ConvertDocument(&o)
-			}
-		case v["$b"] != nil:
-			var o Binary
-			err = o.UnmarshalJSON(data)
-			res = types.Binary(o)
-		case v["$o"] != nil:
-			var o ObjectID
-			err = o.UnmarshalJSON(data)
-			res = types.ObjectID(o)
-		case v["$d"] != nil:
-			var o DateTime
-			err = o.UnmarshalJSON(data)
-			res = time.Time(o)
-		case v["$r"] != nil:
-			var o Regex
-			err = o.UnmarshalJSON(data)
-			res = types.Regex(o)
-		case v["$t"] != nil:
-			var o Timestamp
-			err = o.UnmarshalJSON(data)
-			res = types.Timestamp(o)
-		case v["$l"] != nil:
-			var o Int64
-			err = o.UnmarshalJSON(data)
-			res = int64(o)
-		default:
-			err = lazyerrors.Errorf("unmarshalJSONValue: unhandled map %v", v)
-		}
-	case string:
-		res = v
-	case []any:
-		var o Array
-		err = o.UnmarshalJSON(data)
-		a := types.Array(o)
-		res = &a
-	case bool:
-		res = v
-	case nil:
-		res = v
-	case float64:
-		res = int32(v)
-	default:
-		err = lazyerrors.Errorf("unmarshalJSONValue: unhandled element %[1]T (%[1]v)", v)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
-}
-
-// UnmarshalJSON implements bsontype interface.
-func (doc *Document) UnmarshalJSON(data []byte) error {
-	if bytes.Equal(data, []byte("null")) {
-		panic("null data")
-	}
-
-	r := bytes.NewReader(data)
-	dec := json.NewDecoder(r)
-
-	var rawMessages map[string]json.RawMessage
-	if err := dec.Decode(&rawMessages); err != nil {
-		return lazyerrors.Error(err)
-	}
-	if err := checkConsumed(dec, r); err != nil {
-		return lazyerrors.Error(err)
-	}
-
-	b, ok := rawMessages["$k"]
-	if !ok {
-		return lazyerrors.Errorf("bson.Document.UnmarshalJSON: missing $k")
-	}
-
-	var keys []string
-	if err := json.Unmarshal(b, &keys); err != nil {
-		return lazyerrors.Error(err)
-	}
-	if len(keys)+1 != len(rawMessages) {
-		return lazyerrors.Errorf("bson.Document.UnmarshalJSON: %d elements in $k, %d in total", len(keys), len(rawMessages))
-	}
-
-	doc.keys = keys
-	doc.m = make(map[string]any, len(keys))
-
-	for _, key := range keys {
-		b, ok = rawMessages[key]
-		if !ok {
-			return lazyerrors.Errorf("bson.Document.UnmarshalJSON: missing key %q", key)
-		}
-		v, err := unmarshalJSONValue(b)
-		if err != nil {
-			return lazyerrors.Error(err)
-		}
-		doc.m[key] = v
-	}
-
-	if _, err := types.ConvertDocument(doc); err != nil {
-		return lazyerrors.Errorf("bson.Document.UnmarshalJSON: %w", err)
-	}
-
-	return nil
-}
-
-func marshalJSONValue(v any) ([]byte, error) {
-	var o json.Marshaler
-	var err error
-	switch v := v.(type) {
-	case types.Document:
-		o, err = ConvertDocument(v)
-	case *types.Array:
-		o = Array(*v)
-	case float64:
-		o = Double(v)
-	case string:
-		o = String(v)
-	case types.Binary:
-		o = Binary(v)
-	case types.ObjectID:
-		o = ObjectID(v)
-	case bool:
-		o = Bool(v)
-	case time.Time:
-		o = DateTime(v)
-	case nil:
-		return []byte("null"), nil
-	case types.Regex:
-		o = Regex(v)
-	case int32:
-		o = Int32(v)
-	case types.Timestamp:
-		o = Timestamp(v)
-	case int64:
-		o = Int64(v)
-	default:
-		return nil, lazyerrors.Errorf("marshalJSONValue: unhandled type %T", v)
-	}
-
-	if err != nil {
-		return nil, lazyerrors.Error(err)
-	}
-
-	b, err := o.MarshalJSON()
-	if err != nil {
-		return nil, lazyerrors.Error(err)
-	}
-
-	return b, nil
-}
-
-// MarshalJSON implements bsontype interface.
-func (doc Document) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-
-	buf.WriteString(`{"$k":`)
-	b, err := json.Marshal(doc.keys)
-	if err != nil {
-		return nil, lazyerrors.Error(err)
-	}
-	buf.Write(b)
-
-	for _, key := range doc.keys {
-		buf.WriteByte(',')
-
-		if b, err = json.Marshal(key); err != nil {
-			return nil, lazyerrors.Error(err)
-		}
-		buf.Write(b)
-		buf.WriteByte(':')
-
-		value := doc.m[key]
-		b, err := marshalJSONValue(value)
-		if err != nil {
-			return nil, lazyerrors.Errorf("bson.Document.MarshalJSON: %w", err)
-		}
-
-		buf.Write(b)
-	}
-
-	buf.WriteByte('}')
-	return buf.Bytes(), nil
 }
 
 // check interfaces

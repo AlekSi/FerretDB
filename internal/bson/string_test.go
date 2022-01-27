@@ -22,43 +22,31 @@ import (
 
 var stringTestCases = []testCase{{
 	name: "foo",
-	v:    pointer.To(String("foo")),
+	v:    pointer.To(stringType("foo")),
 	b:    []byte{0x04, 0x00, 0x00, 0x00, 0x66, 0x6f, 0x6f, 0x00},
-	j:    `"foo"`,
 }, {
 	name: "empty",
-	v:    pointer.To(String("")),
+	v:    pointer.To(stringType("")),
 	b:    []byte{0x01, 0x00, 0x00, 0x00, 0x00},
-	j:    `""`,
 }, {
 	name: "zero",
-	v:    pointer.To(String("\x00")),
+	v:    pointer.To(stringType("\x00")),
 	b:    []byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x00},
-	j:    `"\u0000"`,
+}, {
+	name: "EOF",
+	b:    []byte{0x00},
+	bErr: `unexpected EOF`,
 }}
 
 func TestString(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Binary", func(t *testing.T) {
-		t.Parallel()
-		testBinary(t, stringTestCases, func() bsontype { return new(String) })
-	})
-
-	t.Run("JSON", func(t *testing.T) {
-		t.Parallel()
-		testJSON(t, stringTestCases, func() bsontype { return new(String) })
-	})
+	testBinary(t, stringTestCases, func() bsontype { return new(stringType) })
 }
 
-func FuzzStringBinary(f *testing.F) {
-	fuzzBinary(f, stringTestCases, func() bsontype { return new(String) })
-}
-
-func FuzzStringJSON(f *testing.F) {
-	fuzzJSON(f, stringTestCases, func() bsontype { return new(String) })
+func FuzzString(f *testing.F) {
+	fuzzBinary(f, stringTestCases, func() bsontype { return new(stringType) })
 }
 
 func BenchmarkString(b *testing.B) {
-	benchmark(b, stringTestCases, func() bsontype { return new(String) })
+	benchmark(b, stringTestCases, func() bsontype { return new(stringType) })
 }

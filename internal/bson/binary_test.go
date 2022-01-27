@@ -22,63 +22,47 @@ import (
 
 var binaryTestCases = []testCase{{
 	name: "foo",
-	v: &Binary{
+	v: &binaryType{
 		Subtype: types.BinaryUser,
 		B:       []byte("foo"),
 	},
 	b: []byte{0x03, 0x00, 0x00, 0x00, 0x80, 0x66, 0x6f, 0x6f},
-	j: `{"$b":"Zm9v","s":128}`,
 }, {
 	name: "empty",
-	v: &Binary{
+	v: &binaryType{
 		Subtype: types.BinaryGeneric,
 		B:       []byte{},
 	},
-	b:      []byte{0x00, 0x00, 0x00, 0x00, 0x00},
-	j:      `{"$b":""}`,
-	canonJ: `{"$b":"","s":0}`,
+	b: []byte{0x00, 0x00, 0x00, 0x00, 0x00},
 }, {
 	name: "invalid subtype",
-	v: &Binary{
+	v: &binaryType{
 		Subtype: 0xff,
 		B:       []byte{},
 	},
 	b: []byte{0x00, 0x00, 0x00, 0x00, 0xff},
-	j: `{"$b":"","s":255}`,
 }, {
 	name: "extra JSON fields",
-	v: &Binary{
+	v: &binaryType{
 		Subtype: types.BinaryUser,
 		B:       []byte("foo"),
 	},
-	b:      []byte{0x03, 0x00, 0x00, 0x00, 0x80, 0x66, 0x6f, 0x6f},
-	j:      `{"$b":"Zm9v","s":128,"foo":"bar"}`,
-	canonJ: `{"$b":"Zm9v","s":128}`,
-	jErr:   `json: unknown field "foo"`,
+	b: []byte{0x03, 0x00, 0x00, 0x00, 0x80, 0x66, 0x6f, 0x6f},
+}, {
+	name: "EOF",
+	b:    []byte{0x00},
+	bErr: `unexpected EOF`,
 }}
 
 func TestBinary(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Binary", func(t *testing.T) {
-		t.Parallel()
-		testBinary(t, binaryTestCases, func() bsontype { return new(Binary) })
-	})
-
-	t.Run("JSON", func(t *testing.T) {
-		t.Parallel()
-		testJSON(t, binaryTestCases, func() bsontype { return new(Binary) })
-	})
+	testBinary(t, binaryTestCases, func() bsontype { return new(binaryType) })
 }
 
-func FuzzBinaryBinary(f *testing.F) {
-	fuzzBinary(f, binaryTestCases, func() bsontype { return new(Binary) })
-}
-
-func FuzzBinaryJSON(f *testing.F) {
-	fuzzJSON(f, binaryTestCases, func() bsontype { return new(Binary) })
+func FuzzBinary(f *testing.F) {
+	fuzzBinary(f, binaryTestCases, func() bsontype { return new(binaryType) })
 }
 
 func BenchmarkBinary(b *testing.B) {
-	benchmark(b, binaryTestCases, func() bsontype { return new(Binary) })
+	benchmark(b, binaryTestCases, func() bsontype { return new(binaryType) })
 }

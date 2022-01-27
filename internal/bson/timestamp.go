@@ -18,18 +18,18 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 
+	"github.com/FerretDB/FerretDB/internal/types"
 	"github.com/FerretDB/FerretDB/internal/util/lazyerrors"
 )
 
-// Timestamp represents BSON Timestamp data type.
-type Timestamp uint64
+// timestampType represents BSON Timestamp type.
+type timestampType types.Timestamp
 
-func (ts *Timestamp) bsontype() {}
+func (ts *timestampType) bsontype() {}
 
 // ReadFrom implements bsontype interface.
-func (ts *Timestamp) ReadFrom(r *bufio.Reader) error {
+func (ts *timestampType) ReadFrom(r *bufio.Reader) error {
 	if err := binary.Read(r, binary.LittleEndian, ts); err != nil {
 		return lazyerrors.Errorf("bson.Timestamp.ReadFrom (binary.Read): %w", err)
 	}
@@ -38,7 +38,7 @@ func (ts *Timestamp) ReadFrom(r *bufio.Reader) error {
 }
 
 // WriteTo implements bsontype interface.
-func (ts Timestamp) WriteTo(w *bufio.Writer) error {
+func (ts timestampType) WriteTo(w *bufio.Writer) error {
 	v, err := ts.MarshalBinary()
 	if err != nil {
 		return lazyerrors.Errorf("bson.Timestamp.WriteTo: %w", err)
@@ -53,7 +53,7 @@ func (ts Timestamp) WriteTo(w *bufio.Writer) error {
 }
 
 // MarshalBinary implements bsontype interface.
-func (ts Timestamp) MarshalBinary() ([]byte, error) {
+func (ts timestampType) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
 	binary.Write(&buf, binary.LittleEndian, ts)
@@ -61,40 +61,7 @@ func (ts Timestamp) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-type timestampJSON struct {
-	T uint64 `json:"$t,string"`
-}
-
-// UnmarshalJSON implements bsontype interface.
-func (ts *Timestamp) UnmarshalJSON(data []byte) error {
-	if bytes.Equal(data, []byte("null")) {
-		panic("null data")
-	}
-
-	r := bytes.NewReader(data)
-	dec := json.NewDecoder(r)
-	dec.DisallowUnknownFields()
-
-	var o timestampJSON
-	if err := dec.Decode(&o); err != nil {
-		return err
-	}
-	if err := checkConsumed(dec, r); err != nil {
-		return lazyerrors.Errorf("bson.Timestamp.UnmarshalJSON: %s", err)
-	}
-
-	*ts = Timestamp(o.T)
-	return nil
-}
-
-// MarshalJSON implements bsontype interface.
-func (ts Timestamp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(timestampJSON{
-		T: uint64(ts),
-	})
-}
-
 // check interfaces
 var (
-	_ bsontype = (*Timestamp)(nil)
+	_ bsontype = (*timestampType)(nil)
 )

@@ -22,8 +22,10 @@ import (
 	"io"
 
 	"github.com/FerretDB/FerretDB/internal/bson"
+	"github.com/FerretDB/FerretDB/internal/fjson"
 	"github.com/FerretDB/FerretDB/internal/types"
 	"github.com/FerretDB/FerretDB/internal/util/lazyerrors"
+	"github.com/FerretDB/FerretDB/internal/util/must"
 )
 
 const maxNumberReturned = 1000
@@ -34,7 +36,7 @@ type OpReply struct {
 	CursorID       int64
 	StartingFrom   int32
 	NumberReturned int32
-	Documents      []types.Document
+	Documents      []*types.Document
 }
 
 func (reply *OpReply) msgbody() {}
@@ -57,7 +59,7 @@ func (reply *OpReply) readFrom(bufr *bufio.Reader) error {
 		return lazyerrors.Errorf("wire.OpReply.ReadFrom: invalid NumberReturned %d", n)
 	}
 
-	reply.Documents = make([]types.Document, reply.NumberReturned)
+	reply.Documents = make([]*types.Document, reply.NumberReturned)
 	for i := int32(0); i < reply.NumberReturned; i++ {
 		var doc bson.Document
 		if err := doc.ReadFrom(bufr); err != nil {
@@ -120,8 +122,14 @@ func (reply *OpReply) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// MarshalJSON marshals an OpReply in JSON format to a byte array.
-func (reply *OpReply) MarshalJSON() ([]byte, error) {
+// String returns a string representation for logging.
+//
+// Currently, it uses FJSON, but that may change in the future.
+func (reply *OpReply) String() string {
+	if reply == nil {
+		return "<nil>"
+	}
+
 	m := map[string]any{
 		"ResponseFlags":  reply.ResponseFlags,
 		"CursorID":       reply.CursorID,
@@ -129,14 +137,14 @@ func (reply *OpReply) MarshalJSON() ([]byte, error) {
 		"NumberReturned": reply.NumberReturned,
 	}
 
-	docs := make([]any, len(reply.Documents))
+	docs := make([]json.RawMessage, len(reply.Documents))
 	for i, d := range reply.Documents {
-		docs[i] = bson.MustConvertDocument(d)
+		docs[i] = json.RawMessage(must.NotFail(fjson.Marshal(d)))
 	}
 
 	m["Documents"] = docs
 
-	return json.Marshal(m)
+	return string(must.NotFail(json.MarshalIndent(m, "", "  ")))
 }
 
 // check interfaces

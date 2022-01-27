@@ -18,30 +18,29 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"math"
 
 	"github.com/FerretDB/FerretDB/internal/util/lazyerrors"
 )
 
-// Double represents BSON Double data type.
-type Double float64
+// doubleType represents BSON 64-bit binary floating point type.
+type doubleType float64
 
-func (d *Double) bsontype() {}
+func (d *doubleType) bsontype() {}
 
 // ReadFrom implements bsontype interface.
-func (d *Double) ReadFrom(r *bufio.Reader) error {
+func (d *doubleType) ReadFrom(r *bufio.Reader) error {
 	var bits uint64
 	if err := binary.Read(r, binary.LittleEndian, &bits); err != nil {
 		return lazyerrors.Errorf("bson.Double.ReadFrom (binary.Read): %w", err)
 	}
 
-	*d = Double(math.Float64frombits(bits))
+	*d = doubleType(math.Float64frombits(bits))
 	return nil
 }
 
 // WriteTo implements bsontype interface.
-func (d Double) WriteTo(w *bufio.Writer) error {
+func (d doubleType) WriteTo(w *bufio.Writer) error {
 	v, err := d.MarshalBinary()
 	if err != nil {
 		return lazyerrors.Errorf("bson.Double.WriteTo: %w", err)
@@ -56,7 +55,7 @@ func (d Double) WriteTo(w *bufio.Writer) error {
 }
 
 // MarshalBinary implements bsontype interface.
-func (d Double) MarshalBinary() ([]byte, error) {
+func (d doubleType) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
 	binary.Write(&buf, binary.LittleEndian, math.Float64bits(float64(d)))
@@ -64,68 +63,7 @@ func (d Double) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-type doubleJSON struct {
-	F any `json:"$f"`
-}
-
-// UnmarshalJSON implements bsontype interface.
-func (d *Double) UnmarshalJSON(data []byte) error {
-	if bytes.Equal(data, []byte("null")) {
-		panic("null data")
-	}
-
-	r := bytes.NewReader(data)
-	dec := json.NewDecoder(r)
-	dec.DisallowUnknownFields()
-
-	var o doubleJSON
-	if err := dec.Decode(&o); err != nil {
-		return err
-	}
-	if err := checkConsumed(dec, r); err != nil {
-		return lazyerrors.Errorf("bson.Double.UnmarshalJSON: %w", err)
-	}
-
-	switch f := o.F.(type) {
-	case float64:
-		*d = Double(f)
-	case string:
-		switch f {
-		case "Infinity":
-			*d = Double(math.Inf(1))
-		case "-Infinity":
-			*d = Double(math.Inf(-1))
-		case "NaN":
-			*d = Double(math.NaN())
-		default:
-			return lazyerrors.Errorf("bson.Double.UnmarshalJSON: unexpected string %q", f)
-		}
-	default:
-		return lazyerrors.Errorf("bson.Double.UnmarshalJSON: unexpected type %[1]T: %[1]v", f)
-	}
-
-	return nil
-}
-
-// MarshalJSON implements bsontype interface.
-func (d Double) MarshalJSON() ([]byte, error) {
-	f := float64(d)
-	var o doubleJSON
-	switch {
-	case math.IsInf(f, 1):
-		o.F = "Infinity"
-	case math.IsInf(f, -1):
-		o.F = "-Infinity"
-	case math.IsNaN(f):
-		o.F = "NaN"
-	default:
-		o.F = f
-	}
-
-	return json.Marshal(o)
-}
-
 // check interfaces
 var (
-	_ bsontype = (*Double)(nil)
+	_ bsontype = (*doubleType)(nil)
 )

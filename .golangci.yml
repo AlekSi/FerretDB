@@ -6,14 +6,26 @@ run:
   issues-exit-code: 0
 
 linters-settings:
+  depguard:
+    list-type: blacklist
+    packages:
+      - github.com/FerretDB/FerretDB/internal/bson
   exhaustive:
     default-signifies-exhaustive: false
+  goconst:
+    min-occurrences: 5
+    ignore-tests: true
   godot:
     scope: toplevel
     exclude:
       - go-sumtype:decl
       - check interfaces
     capital: true
+  godox:
+    keywords:
+      - BUG
+      - FIXME
+      - HACK
   goheader:
     template: |-
       Copyright 2021 FerretDB Inc.
@@ -36,7 +48,7 @@ linters-settings:
     checks: ["all"]
   lll:
     line-length: 130
-    tab-width: 1
+    tab-width: 4
   misspell:
     ignore-words:
       - guiness # present in the test dataset
@@ -80,7 +92,6 @@ linters:
     - gocognit
     - gocritic
     - gocyclo
-    - godox
     - goerr113
     - gomnd
     - gosec
@@ -94,10 +105,18 @@ linters:
     - wrapcheck
 
     # TODO enable when goanalysis_metalinter supports generics
+    - bodyclose
+    - contextcheck
     - gosimple
+    - nilerr
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
     - staticcheck
     - stylecheck
+    - tparallel
     - unused
+    - wastedassign
 
     - golint      # deprecated
     - interfacer  # deprecated
@@ -109,3 +128,8 @@ linters:
 
 issues:
   exclude-use-default: false
+  exclude-rules:
+    # only `wire` package can import `bson` package
+    - linters: [depguard]
+      path: internal/wire
+      text: bson

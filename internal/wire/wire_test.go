@@ -17,12 +17,24 @@ package wire
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// lastErr returns the last error in error chain.
+func lastErr(err error) error {
+	for {
+		e := errors.Unwrap(err)
+		if e == nil {
+			return err
+		}
+		err = e
+	}
+}
 
 var lastUpdate = time.Date(2020, 2, 15, 9, 34, 33, 0, time.UTC).Local()
 
@@ -33,6 +45,7 @@ type testCase struct {
 	expectedB []byte
 	msgHeader *MsgHeader
 	msgBody   MsgBody
+	err       string // unwrapped
 }
 
 func testMessages(t *testing.T, testCases []testCase) {
@@ -63,14 +76,28 @@ func testMessages(t *testing.T, testCases []testCase) {
 				br := bytes.NewReader(tc.expectedB)
 				bufr := bufio.NewReader(br)
 				msgHeader, msgBody, err := ReadMessage(bufr)
-				require.NoError(t, err)
-				assert.Equal(t, tc.msgHeader, msgHeader)
-				assert.Equal(t, tc.msgBody, msgBody)
-				assert.Zero(t, br.Len(), "not all br bytes were consumed")
-				assert.Zero(t, bufr.Buffered(), "not all bufr bytes were consumed")
+				if tc.err == "" {
+					assert.NoError(t, err)
+					assert.Equal(t, tc.msgHeader, msgHeader)
+					assert.Equal(t, tc.msgBody, msgBody)
+					assert.Zero(t, br.Len(), "not all br bytes were consumed")
+					assert.Zero(t, bufr.Buffered(), "not all bufr bytes were consumed")
+
+					assert.NotPanics(t, func() { _ = msgHeader.String() })
+					assert.NotPanics(t, func() { _ = msgBody.String() })
+
+					return
+				}
+
+				require.Error(t, err)
+				require.Equal(t, tc.err, lastErr(err).Error())
 			})
 
 			t.Run("WriteMessage", func(t *testing.T) {
+				if tc.msgHeader == nil {
+					t.Skip("msgHeader is nil")
+				}
+
 				t.Parallel()
 
 				var buf bytes.Buffer
@@ -107,6 +134,9 @@ func fuzzMessages(f *testing.F, testCases []testCase) {
 			if err != nil {
 				t.Skip(err)
 			}
+
+			assert.NotPanics(t, func() { _ = msgHeader.String() })
+			assert.NotPanics(t, func() { _ = msgBody.String() })
 
 			// remove random tail
 			expectedB = b[:len(b)-bufr.Buffered()-br.Len()]

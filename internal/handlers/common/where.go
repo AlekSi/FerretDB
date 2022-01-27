@@ -22,7 +22,6 @@ import (
 
 type wherePair func(key string, value any, p *pg.Placeholder) (sql string, args []any, err error)
 
-//nolint:goconst // $op is fine
 func LogicExpr(op string, exprs *types.Array, p *pg.Placeholder, wherePair wherePair) (sql string, args []any, err error) {
 	if op == "$nor" {
 		sql = "NOT ("
@@ -49,7 +48,7 @@ func LogicExpr(op string, exprs *types.Array, p *pg.Placeholder, wherePair where
 				return
 			}
 
-			expr := el.(types.Document)
+			expr := el.(*types.Document)
 			m := expr.Map()
 			for j, key := range expr.Keys() {
 				if j != 0 {

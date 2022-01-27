@@ -36,6 +36,12 @@ const (
 	// Supported locales: (For more info see: https://www.gnu.org/software/libc/manual/html_node/Standard-Locales.html)
 	localeC     = "C"
 	localePOSIX = "POSIX"
+
+	// Table uses JSONB1 storage.
+	JSONB1Table = "jsonb1"
+
+	// Table uses SQL storage.
+	SQLTable = "sql"
 )
 
 var (
@@ -52,10 +58,21 @@ type Pool struct {
 type TableStats struct {
 	Table       string
 	TableType   string
-	SizeTotal   int64
-	SizeIndexes int64
-	SizeTable   int64
-	Rows        int64
+	SizeTotal   int32
+	SizeIndexes int32
+	SizeTable   int32
+	Rows        int32
+}
+
+// DBStats describes some statistics for a database.
+type DBStats struct {
+	Name         string
+	CountTables  int32
+	CountRows    int32
+	SizeTotal    int64
+	SizeIndexes  int64
+	SizeSchema   int64
+	CountIndexes int32
 }
 
 // NewPool returns a pgxpool, a concurrency-safe connection pool for pgx.
@@ -101,7 +118,7 @@ func NewPool(connString string, logger *zap.Logger, lazy bool) (*Pool, error) {
 	return res, err
 }
 
-// Currently supported locale variants, compromised between https://www.postgresql.org/docs/9.3/multibyte.html
+// IsValidUTF8Locale Currently supported locale variants, compromised between https://www.postgresql.org/docs/9.3/multibyte.html
 // and https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html.
 //
 // Valid examples:
@@ -109,16 +126,16 @@ func NewPool(connString string, logger *zap.Logger, lazy bool) (*Pool, error) {
 // * en_US.utf-8
 // * en_US.UTF8,
 // * en_US.UTF-8.
-func validUtf8Locale(setting string) bool {
+func IsValidUTF8Locale(setting string) bool {
 	lowered := strings.ToLower(setting)
 
 	return lowered == "en_us.utf8" || lowered == "en_us.utf-8"
 }
 
-func (p *Pool) checkConnection(ctx context.Context) error {
-	logger := p.Config().ConnConfig.Logger
+func (pgPool *Pool) checkConnection(ctx context.Context) error {
+	logger := pgPool.Config().ConnConfig.Logger
 
-	rows, err := p.Query(ctx, "SHOW ALL")
+	rows, err := pgPool.Query(ctx, "SHOW ALL")
 	if err != nil {
 		return fmt.Errorf("pg.Pool.checkConnection: %w", err)
 	}
@@ -140,11 +157,11 @@ func (p *Pool) checkConnection(ctx context.Context) error {
 				return fmt.Errorf("pg.Pool.checkConnection: %q is %q, want %q", name, setting, encUTF8)
 			}
 		case "lc_collate":
-			if setting != localeC && setting != localePOSIX && !validUtf8Locale(setting) {
+			if setting != localeC && setting != localePOSIX && !IsValidUTF8Locale(setting) {
 				return fmt.Errorf("pg.Pool.checkConnection: %q is %q", name, setting)
 			}
 		case "lc_ctype":
-			if setting != localeC && setting != localePOSIX && !validUtf8Locale(setting) {
+			if setting != localeC && setting != localePOSIX && !IsValidUTF8Locale(setting) {
 				return fmt.Errorf("pg.Pool.checkConnection: %q is %q", name, setting)
 			}
 		default:
@@ -196,89 +213,134 @@ func (pgPool *Pool) Schemas(ctx context.Context) ([]string, error) {
 }
 
 // Tables returns a sorted list of FerretDB collection / PostgreSQL table names.
-func (pgPool *Pool) Tables(ctx context.Context, db string) ([]string, error) {
-	sql := "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name"
-	rows, err := pgPool.Query(ctx, sql, db)
+func (pgPool *Pool) Tables(ctx context.Context, schema string) ([]string, []string, error) {
+	// TODO query settings table instead: https://github.com/FerretDB/FerretDB/issues/125
+
+	sql := `SELECT table_name, bool_or(column_name = '_jsonb') ` +
+		`FROM information_schema.columns ` +
+		`WHERE table_schema = $1 ` +
+		`GROUP BY table_name ` +
+		`ORDER BY table_name`
+	rows, err := pgPool.Query(ctx, sql, schema)
 	if err != nil {
-		return nil, lazyerrors.Error(err)
+		return nil, nil, lazyerrors.Error(err)
 	}
 	defer rows.Close()
 
-	res := make([]string, 0, 2)
+	tables := make([]string, 0, 2)
+	storages := make([]string, 0, 2)
+	var name string
+	var hasJSONB bool
 	for rows.Next() {
-		var name string
-		if err = rows.Scan(&name); err != nil {
-			return nil, lazyerrors.Error(err)
+		if err = rows.Scan(&name, &hasJSONB); err != nil {
+			return nil, nil, lazyerrors.Error(err)
 		}
 
-		res = append(res, name)
+		tables = append(tables, name)
+		if hasJSONB {
+			storages = append(storages, JSONB1Table)
+		} else {
+			storages = append(storages, SQLTable)
+		}
 	}
 	if err = rows.Err(); err != nil {
-		return nil, lazyerrors.Error(err)
+		return nil, nil, lazyerrors.Error(err)
 	}
 
-	return res, nil
+	return tables, storages, nil
 }
 
 // CreateSchema creates a new FerretDB database / PostgreSQL schema.
 //
 // It returns ErrAlreadyExist if schema already exist.
-func (pgPool *Pool) CreateSchema(ctx context.Context, db string) error {
-	sql := `CREATE SCHEMA ` + pgx.Identifier{db}.Sanitize()
+func (pgPool *Pool) CreateSchema(ctx context.Context, schema string) error {
+	sql := `CREATE SCHEMA ` + pgx.Identifier{schema}.Sanitize()
 	_, err := pgPool.Exec(ctx, sql)
-
-	if e, ok := err.(*pgconn.PgError); ok && e.Code == pgerrcode.DuplicateSchema {
-		return ErrAlreadyExist
+	if err == nil {
+		return nil
 	}
 
-	return err
+	pgErr, ok := err.(*pgconn.PgError)
+	if !ok {
+		return lazyerrors.Errorf("pg.CreateSchema: %w", err)
+	}
+
+	switch pgErr.Code {
+	case pgerrcode.DuplicateSchema:
+		return ErrAlreadyExist
+	case pgerrcode.UniqueViolation, pgerrcode.DuplicateObject:
+		// https://www.postgresql.org/message-id/CA+TgmoZAdYVtwBfp1FL2sMZbiHCWT4UPrzRLNnX1Nb30Ku3-gg@mail.gmail.com
+		// The same thing for schemas. Reproducible by dance tests.
+		return ErrAlreadyExist
+	default:
+		return lazyerrors.Errorf("pg.CreateSchema: %w", err)
+	}
 }
 
 // DropSchema drops FerretDB database / PostgreSQL schema.
 //
 // It returns ErrNotExist if schema does not exist.
-func (pgPool *Pool) DropSchema(ctx context.Context, db string) error {
-	sql := `DROP SCHEMA ` + pgx.Identifier{db}.Sanitize() + ` CASCADE`
+func (pgPool *Pool) DropSchema(ctx context.Context, schema string) error {
+	sql := `DROP SCHEMA ` + pgx.Identifier{schema}.Sanitize() + ` CASCADE`
 	_, err := pgPool.Exec(ctx, sql)
+	if err == nil {
+		return nil
+	}
 
-	if e, ok := err.(*pgconn.PgError); ok && e.Code == pgerrcode.InvalidSchemaName {
+	if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == pgerrcode.InvalidSchemaName {
 		return ErrNotExist
 	}
 
-	return err
+	return lazyerrors.Errorf("pg.DropSchema: %w", err)
 }
 
-// CreateTable creates a new FerretDB collection / PostgreSQL jsonb table.
+// CreateTable creates a new FerretDB collection / PostgreSQL jsonb1 table.
 //
 // It returns ErrAlreadyExist if table already exist.
-func (pgPool *Pool) CreateTable(ctx context.Context, db, collection string) error {
-	sql := `CREATE TABLE ` + pgx.Identifier{db, collection}.Sanitize() + ` (_jsonb jsonb)`
+func (pgPool *Pool) CreateTable(ctx context.Context, schema, table string) error {
+	sql := `CREATE TABLE ` + pgx.Identifier{schema, table}.Sanitize() + ` (_jsonb jsonb)`
 	_, err := pgPool.Exec(ctx, sql)
-
-	if e, ok := err.(*pgconn.PgError); ok && e.Code == pgerrcode.DuplicateTable {
-		return ErrAlreadyExist
+	if err == nil {
+		return nil
 	}
 
-	return err
+	pgErr, ok := err.(*pgconn.PgError)
+	if !ok {
+		return lazyerrors.Errorf("pg.CreateTable: %w", err)
+	}
+
+	switch pgErr.Code {
+	case pgerrcode.DuplicateTable:
+		return ErrAlreadyExist
+	case pgerrcode.UniqueViolation, pgerrcode.DuplicateObject:
+		// https://www.postgresql.org/message-id/CA+TgmoZAdYVtwBfp1FL2sMZbiHCWT4UPrzRLNnX1Nb30Ku3-gg@mail.gmail.com
+		// Reproducible by dance tests.
+		return ErrAlreadyExist
+	default:
+		return lazyerrors.Errorf("pg.CreateTable: %w", err)
+	}
 }
 
 // DropTable drops FerretDB collection / PostgreSQL table.
 //
 // It returns ErrNotExist is table does not exist.
-func (pgPool *Pool) DropTable(ctx context.Context, db, collection string) error {
+func (pgPool *Pool) DropTable(ctx context.Context, schema, table string) error {
 	// TODO probably not CASCADE
-	sql := `DROP TABLE ` + pgx.Identifier{db, collection}.Sanitize() + `CASCADE`
+	sql := `DROP TABLE ` + pgx.Identifier{schema, table}.Sanitize() + `CASCADE`
 	_, err := pgPool.Exec(ctx, sql)
+	if err == nil {
+		return nil
+	}
 
-	if e, ok := err.(*pgconn.PgError); ok && e.Code == pgerrcode.UndefinedTable {
+	if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == pgerrcode.UndefinedTable {
 		return ErrNotExist
 	}
 
-	return err
+	return lazyerrors.Errorf("pg.DropTable: %w", err)
 }
 
-// TableStats returns a set of statistics for a table.
-func (pgPool *Pool) TableStats(ctx context.Context, db, table string) (*TableStats, error) {
+// TableStats returns a set of statistics for FerretDB collection / PostgreSQL table.
+func (pgPool *Pool) TableStats(ctx context.Context, schema, table string) (*TableStats, error) {
 	res := new(TableStats)
 	sql := `
     SELECT table_name, table_type,
@@ -293,8 +355,37 @@ func (pgPool *Pool) TableStats(ctx context.Context, db, table string) (*TableSta
      WHERE t.table_schema = $1
        AND t.table_name = $2`
 
-	err := pgPool.QueryRow(ctx, sql, db, table).
+	err := pgPool.QueryRow(ctx, sql, schema, table).
 		Scan(&res.Table, &res.TableType, &res.SizeTotal, &res.SizeIndexes, &res.SizeTable, &res.Rows)
+	if err != nil {
+		return nil, lazyerrors.Error(err)
+	}
+
+	return res, nil
+}
+
+// SchemaStats returns a set of statistics for FerretDB database / PostgreSQL schema.
+func (pgPool *Pool) SchemaStats(ctx context.Context, schema string) (*DBStats, error) {
+	res := new(DBStats)
+	sql := `
+    SELECT COUNT(distinct t.table_name)                                                             AS CountTables,
+           COALESCE(SUM(s.n_live_tup), 0)                                                           AS CountRows,
+           COALESCE(SUM(pg_total_relation_size('"'||t.table_schema||'"."'||t.table_name||'"')), 0)  AS SizeTotal,
+           COALESCE(SUM(pg_indexes_size('"'||t.table_schema||'"."'||t.table_name||'"')), 0)         AS SizeIndexes,
+           COALESCE(SUM(pg_relation_size('"'||t.table_schema||'"."'||t.table_name||'"')), 0)        AS SizeSchema,
+           COUNT(distinct i.indexname)                                                              AS CountIndexes
+      FROM information_schema.tables AS t
+      LEFT OUTER
+      JOIN pg_stat_user_tables       AS s ON s.schemaname = t.table_schema
+                                         AND s.relname = t.table_name
+      LEFT OUTER
+      JOIN pg_indexes                AS i ON i.schemaname = t.table_schema
+                                         AND i.tablename = t.table_name
+     WHERE t.table_schema = $1`
+
+	res.Name = schema
+	err := pgPool.QueryRow(ctx, sql, schema).
+		Scan(&res.CountTables, &res.CountRows, &res.SizeTotal, &res.SizeIndexes, &res.SizeSchema, &res.CountIndexes)
 	if err != nil {
 		return nil, lazyerrors.Error(err)
 	}

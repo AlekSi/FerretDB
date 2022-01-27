@@ -16,13 +16,11 @@ package bson
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/json"
 
 	"github.com/FerretDB/FerretDB/internal/util/lazyerrors"
 )
 
-// CString represents BSON CString data type.
+// CString represents BSON zero-terminated UTF-8 string type.
 type CString string
 
 func (cstr *CString) bsontype() {}
@@ -58,39 +56,6 @@ func (cstr CString) MarshalBinary() ([]byte, error) {
 	b := make([]byte, len(cstr)+1)
 	copy(b, cstr)
 	return b, nil
-}
-
-type cstringJSON struct {
-	CString string `json:"$c"`
-}
-
-// UnmarshalJSON implements bsontype interface.
-func (cstr *CString) UnmarshalJSON(data []byte) error {
-	if bytes.Equal(data, []byte("null")) {
-		panic("null data")
-	}
-
-	r := bytes.NewReader(data)
-	dec := json.NewDecoder(r)
-	dec.DisallowUnknownFields()
-
-	var o cstringJSON
-	if err := dec.Decode(&o); err != nil {
-		return err
-	}
-	if err := checkConsumed(dec, r); err != nil {
-		return lazyerrors.Errorf("bson.CString.UnmarshalJSON: %s", err)
-	}
-
-	*cstr = CString(o.CString)
-	return nil
-}
-
-// MarshalJSON implements bsontype interface.
-func (cstr CString) MarshalJSON() ([]byte, error) {
-	return json.Marshal(cstringJSON{
-		CString: string(cstr),
-	})
 }
 
 // check interfaces

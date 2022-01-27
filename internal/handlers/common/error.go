@@ -60,16 +60,6 @@ func NewError(code ErrorCode, err error) error {
 	}
 }
 
-// NewErrorMessage creates a new wire protocol error with message.
-//
-// Code can't be zero, message can't be empty.
-func NewErrorMessage(code ErrorCode, msg string, args ...any) error {
-	if msg == "" {
-		panic("msg is empty")
-	}
-	return NewError(code, fmt.Errorf(msg, args...))
-}
-
 // Error implements error interface.
 func (e *Error) Error() string {
 	return fmt.Sprintf("%[1]s (%[1]d): %[2]v", e.code, e.err)
@@ -81,8 +71,8 @@ func (e *Error) Unwrap() error {
 }
 
 // Document returns wire protocol error document.
-func (e *Error) Document() types.Document {
-	return types.MustMakeDocument(
+func (e *Error) Document() *types.Document {
+	return types.MustNewDocument(
 		"ok", float64(0),
 		"errmsg", e.err.Error(),
 		"code", int32(e.code),

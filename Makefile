@@ -1,3 +1,6 @@
+FUZZTIME ?= 20s
+FUZZCORPUS ?= ../fuzz-corpus
+
 all: fmt test
 
 help:                                  ## Display this help message
@@ -21,6 +24,7 @@ env-down:                              ## Stop development environment
 	docker-compose down --remove-orphans
 
 init: gen-version                      ## Install development tools
+	rm -fr bin
 	go mod tidy
 	cd tools && go mod tidy
 	go mod verify
@@ -37,27 +41,37 @@ fmt: bin/gofumpt                       ## Format code
 	bin/gofumpt -w .
 
 test:                                  ## Run tests
-	go test -race -coverprofile=cover.txt -coverpkg=./... -shuffle=on ./...
+	go test -race -shuffle=on -coverprofile=cover.txt -coverpkg=./... ./...
+	go test -race -shuffle=on -bench=. -benchtime=1x ./...
 
 # That's not quite correct: https://github.com/golang/go/issues/15513
 # But good enough for us.
 fuzz-init: gen-version
 	go test -count=0 ./...
 
-fuzz-short:                            ## Fuzz for 1 minute
+fuzz:                                  ## Fuzz for about 2 minutes (with default FUZZTIME)
 	go test -list='Fuzz.*' ./...
-	go test -fuzz=FuzzArrayBinary -fuzztime=1m ./internal/bson/
-	go test -fuzz=FuzzArrayJSON -fuzztime=1m ./internal/bson/
-	go test -fuzz=FuzzDocumentBinary -fuzztime=1m ./internal/bson/
-	go test -fuzz=FuzzDocumentJSON -fuzztime=1m ./internal/bson/
-	go test -fuzz=FuzzMsg -fuzztime=1m ./internal/wire/
-	go test -fuzz=FuzzQuery -fuzztime=1m ./internal/wire/
-	go test -fuzz=FuzzReply -fuzztime=1m ./internal/wire/
+	# Running seven functions for $(FUZZTIME) each..."
+	go test -fuzz=FuzzArray -fuzztime=$(FUZZTIME) ./internal/bson/
+	go test -fuzz=FuzzDocument -fuzztime=$(FUZZTIME) ./internal/bson/
+	go test -fuzz=FuzzArray -fuzztime=$(FUZZTIME) ./internal/fjson/
+	go test -fuzz=FuzzDocument -fuzztime=$(FUZZTIME) ./internal/fjson/
+	go test -fuzz=FuzzMsg -fuzztime=$(FUZZTIME) ./internal/wire/
+	go test -fuzz=FuzzQuery -fuzztime=$(FUZZTIME) ./internal/wire/
+	go test -fuzz=FuzzReply -fuzztime=$(FUZZTIME) ./internal/wire/
 
-bench-short:                           ## Benchmark for 5 seconds
-	go test -list='Bench.*' ./...
-	go test -bench=BenchmarkArray -benchtime=5s ./internal/bson/
-	go test -bench=BenchmarkDocument -benchtime=5s ./internal/bson/
+fuzz-corpus:                           ## Sync generated fuzz corpus with FUZZCORPUS
+	go run ./cmd/fuzztool/fuzztool.go -src=$(FUZZCORPUS) -dst=generated
+	go run ./cmd/fuzztool/fuzztool.go -dst=$(FUZZCORPUS) -src=generated
+
+bench-short:                           ## Benchmark for about 20 seconds
+	go test -list='Benchmark.*' ./...
+	rm -f new.txt
+	go test -bench=BenchmarkArray    -benchtime=5s ./internal/bson/  | tee -a new.txt
+	go test -bench=BenchmarkDocument -benchtime=5s ./internal/bson/  | tee -a new.txt
+	go test -bench=BenchmarkArray    -benchtime=5s ./internal/fjson/ | tee -a new.txt
+	go test -bench=BenchmarkDocument -benchtime=5s ./internal/fjson/ | tee -a new.txt
+	bin/benchstat old.txt new.txt
 
 build-testcover: gen-version           ## Build bin/ferretdb-testcover
 	go test -c -o=bin/ferretdb-testcover -trimpath -tags=testcover -race -coverpkg=./... ./cmd/ferretdb
@@ -86,25 +100,28 @@ docker-init:
 	docker buildx create --driver=docker-container --name=ferretdb
 
 docker-build: build-testcover
-	env GOOS=linux GOARCH=arm64            go test -c -o=bin/ferretdb-arm64 -trimpath -tags=testcover -coverpkg=./... ./cmd/ferretdb
-	env GOOS=linux GOARCH=amd64 GOAMD64=v2 go test -c -o=bin/ferretdb-amd64 -trimpath -tags=testcover -coverpkg=./... ./cmd/ferretdb
+	env GOOS=linux GOARCH=arm64 go test -c -o=bin/ferretdb-arm64 -trimpath -tags=testcover -coverpkg=./... ./cmd/ferretdb
+	env GOOS=linux GOARCH=amd64 go test -c -o=bin/ferretdb-amd64 -trimpath -tags=testcover -coverpkg=./... ./cmd/ferretdb
 
 docker-local: docker-build
-	docker buildx build --builder=ferretdb --tag=ghcr.io/pboros/ferretdb:local --load .
+	docker buildx build --builder=ferretdb --tag=ferretdb-local --load .
 
 docker-push:
+	test $(DOCKER_IMAGE)
 	test $(DOCKER_TAG)
-	#docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=ghcr.io/pboros/ferretdb:$(DOCKER_TAG) --push .
-	docker push ghcr.io/pboros/ferretdb:$(DOCKER_TAG)
+	#docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=$(DOCKER_IMAGE):$(DOCKER_TAG) --push .
+	docker push $(DOCKER_IMAGE):$(DOCKER_TAG)
 
 docker-oci: docker-build
+	test $(DOCKER_IMAGE)
 	test $(DOCKER_TAG)
-	docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=ghcr.io/pboros/ferretdb:$(DOCKER_TAG) -o type=oci,dest=dev-ferretdb-${DOCKER_TAG}.tar .
+	docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 --tag=$(DOCKER_IMAGE):$(DOCKER_TAG) -o type=oci,dest=dev-ferretdb-$(DOCKER_TAG).tar .
 
 docker-import-oci:
-	test ${DOCKER_TAG}
-	test -f ferretdb_${DOCKER_TAG}.tar
-	cat ferretdb_${DOCKER_TAG}.tar | docker import - ghcr.io/pboros/ferretdb
+	test $(DOCKER_IMAGE)
+	test $(DOCKER_TAG)
+	test -f ferretdb_$(DOCKER_TAG).tar
+	cat ferretdb_$(DOCKER_TAG).tar | docker import - $(DOCKER_IMAGE)
 
 bin/golangci-lint:
 	$(MAKE) init

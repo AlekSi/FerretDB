@@ -1,0 +1,61 @@
+---
+name: Docker Build
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    - cron: '42 3 * * *'
+
+env:
+  GOPATH: /home/runner/go
+  GOCACHE: /home/runner/go/cache
+  GOMODCACHE: /home/runner/go/cache/mod
+  GOPROXY: https://proxy.golang.org # remove direct
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v1
+        with:
+          use: false # we initialize our own instance below
+
+      - name: Setup Go
+        uses: FerretDB/github-actions/setup-go@main
+        with:
+          cache-key: build
+
+      - name: Initialize builder instance
+        run: make docker-init
+
+      - name: Extract Docker image tag
+        id: extract-docker-tag
+        uses: FerretDB/github-actions/extract-docker-tag@main
+
+      - name: Build OCI image locally with tag "${{ env.DOCKER_TAG }}"
+        run: make docker-oci
+        env:
+          DOCKER_IMAGE: ${{ steps.extract-docker-tag.outputs.image }}
+          DOCKER_TAG: ${{ steps.extract-docker-tag.outputs.tag }}
+
+      - name: Upload resulting OCI image
+        uses: actions/upload-artifact@v2
+        with:
+          name: dev-ferretdb-${{ steps.extract-docker-tag.outputs.tag }}.tar
+          path: dev-ferretdb-${{ steps.extract-docker-tag.outputs.tag }}.tar
+          retention-days: 7
+
+      - name: Check dirty
+        run: |
+          git status
+          git diff --exit-code

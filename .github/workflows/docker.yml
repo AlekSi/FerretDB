@@ -59,7 +59,7 @@ jobs:
         run: make docker-init
 
       - name: Extract Docker image name and tag
-        id: extract-docker-tag
+        id: extract
         uses: FerretDB/github-actions/extract-docker-tag@main
 
       - name: Login to GitHub Container Registry
@@ -72,8 +72,7 @@ jobs:
       - name: Build Docker image ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
         run: make docker-push
         env:
-          DOCKER_IMAGE: ${{ steps.extract-docker-tag.outputs.image }}
-          DOCKER_TAG: ${{ steps.extract-docker-tag.outputs.tag }}
+          DOCKER_IMAGE: ${{ steps.extract.outputs.ghcr }}
 
       - name: Check dirty
         run: |

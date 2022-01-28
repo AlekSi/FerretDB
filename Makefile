@@ -112,11 +112,10 @@ docker-local: docker-build
 
 docker-push: docker-build
 	test $(DOCKER_IMAGE)
-	test $(DOCKER_TAG)
 	docker buildx build --builder=ferretdb --platform=linux/arm64,linux/amd64 \
 		--build-arg VERSION=$(shell cat internal/util/version/version.txt) \
 		--build-arg COMMIT=$(shell cat internal/util/version/commit.txt) \
-		--tag=$(DOCKER_IMAGE):$(DOCKER_TAG) \
+		--tag=$(DOCKER_IMAGE) \
 		--push .
 
 bin/golangci-lint:

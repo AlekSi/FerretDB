@@ -28,7 +28,6 @@ jobs:
 
     permissions:
       packages: write
-    #   contents: read
 
     steps:
       - name: Dump GitHub context
@@ -69,7 +68,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+      - name: Build Docker image ${{ steps.extract.outputs.ghcr }}
         run: make docker-push
         env:
           DOCKER_IMAGE: ${{ steps.extract.outputs.ghcr }}

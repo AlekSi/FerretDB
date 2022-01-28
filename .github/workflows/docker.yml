@@ -30,9 +30,6 @@ jobs:
       packages: write
 
     steps:
-      - name: Dump GitHub context
-        run: echo '${{ toJSON(github) }}'
-
       - name: Checkout code
         if: github.event_name != 'pull_request_target'
         uses: actions/checkout@v2

@@ -175,3 +175,32 @@ jobs:
           git status
           git diff --exit-code
         working-directory: source
+
+  dance:
+    name: Dance
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: FerretDB/github-actions/setup-go@main
+        with:
+          cache-key: dance
+
+      - name: Run init
+        run: make init
+
+      - name: Initialize Docker Buildx builder
+        run: make docker-init
+
+      - name: Build local Docker image
+        run: make docker-local
+
+      - name: Check dirty
+        run: |
+          git status
+          git diff --exit-code

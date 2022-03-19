@@ -7,9 +7,24 @@ BEGIN
     t := jsonb_typeof(v);
     CASE t
         WHEN 'object' THEN
-            RAISE 'ferretdb_scalar_type: v is jsonb object';
+            CASE
+                WHEN v->'$k' IS NOT NULL THEN
+                    RAISE 'ferretdb_scalar_type: v is a document: %', v;
+                WHEN v->'$f' IS NOT NULL THEN
+
+                WHEN v->'$b' IS NOT NULL THEN
+                WHEN v->'$o' IS NOT NULL THEN
+                WHEN v->'$d' IS NOT NULL THEN
+                WHEN v->'$r' IS NOT NULL THEN
+                WHEN v->'$t' IS NOT NULL THEN
+                WHEN v->'$l' IS NOT NULL THEN
+                WHEN v->'$n' IS NOT NULL THEN
+                WHEN v->'$c' IS NOT NULL THEN
+                ELSE
+                    RAISE 'ferretdb_scalar_type: v is an unexpected jsonb object: %', v;
+            END CASE;
         WHEN 'array' THEN
-            RAISE 'ferretdb_scalar_type: v is jsonb array';
+            RAISE 'ferretdb_scalar_type: v is jsonb array: %', v;
         WHEN 'string' THEN
             -- use #>> operator to remove quotes, escaping, etc
             res := ('string'::text, v #>> '{}');
@@ -18,7 +33,7 @@ BEGIN
         WHEN 'boolean' THEN
             res := ('bool'::text, v::boolean);
         ELSE
-            RAISE 'ferretdb_scalar_type: v has unhandled jsonb type %', t;
+            RAISE 'ferretdb_scalar_type: v has unhandled jsonb type: %', t;
     END CASE;
 
     RETURN res;

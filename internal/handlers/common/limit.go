@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sql
+package common
 
-import (
-	"context"
+import "github.com/FerretDB/FerretDB/internal/types"
 
-	"github.com/FerretDB/FerretDB/internal/handlers/common"
-	"github.com/FerretDB/FerretDB/internal/wire"
-)
-
-// MsgUpdate modifies an existing document or documents in a collection.
-func (s *storage) MsgUpdate(ctx context.Context, msg *wire.OpMsg) (*wire.OpMsg, error) {
-	return nil, common.NewErrorMsg(common.ErrNotImplemented, "update: not implemented for SQL storage")
+// LimitDocuments returns a subslice of given documents according to the given limit.
+func LimitDocuments(docs []*types.Document, limit int64) ([]*types.Document, error) {
+	switch {
+	case limit == 0:
+		return docs, nil
+	case limit > 0:
+		return docs[:limit], nil
+	default:
+		// TODO https://github.com/FerretDB/FerretDB/issues/79
+		return nil, NewErrorMsg(ErrNotImplemented, "LimitDocuments: negative limit values are not supported")
+	}
 }

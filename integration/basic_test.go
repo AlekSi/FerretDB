@@ -12,38 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sql
+package integration
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/FerretDB/FerretDB/internal/types"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func TestConvert(t *testing.T) {
+func TestMostCommandsAreCaseSensitive(t *testing.T) {
 	t.Parallel()
-	ctx, pool := setup(t)
+	ctx, db := setup(t)
 
-	rows, err := pool.Query(ctx, "SELECT * FROM pagila.actor ORDER BY actor_id")
-	require.NoError(t, err)
-	defer rows.Close()
+	res := db.RunCommand(ctx, bson.D{{"listcollections", 1}})
+	err := res.Err()
+	require.Error(t, err)
+	assert.Equal(t, mongo.CommandError{Code: 59, Name: "CommandNotFound", Message: `no such command: 'listcollections'`}, err)
 
-	ri := extractRowInfo(rows)
-	assert.Equal(t, []string{"actor_id", "first_name", "last_name", "last_update"}, ri.names)
+	res = db.RunCommand(ctx, bson.D{{"listCollections", 1}})
+	assert.NoError(t, res.Err())
 
-	doc, err := nextRow(rows, ri)
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-
-	expected := types.MustNewDocument(
-		"actor_id", int32(1),
-		"first_name", "PENELOPE",
-		"last_name", "GUINESS",
-		"last_update", time.Date(2020, 2, 15, 9, 34, 33, 0, time.UTC).Local(),
-	)
-	assert.Equal(t, expected, doc)
+	// special case
+	res = db.RunCommand(ctx, bson.D{{"ismaster", 1}})
+	assert.NoError(t, res.Err())
+	res = db.RunCommand(ctx, bson.D{{"isMaster", 1}})
+	assert.NoError(t, res.Err())
 }

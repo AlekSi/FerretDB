@@ -72,8 +72,8 @@ func TestDelete(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			_, _, closeConn := h.Handle(ctx, &header, &msg)
-			require.False(t, closeConn)
+			_, resBody, closeConn := h.Handle(ctx, &header, &msg)
+			require.False(t, closeConn, "%s", resBody.String())
 		}
 
 		type testCase struct {
@@ -107,7 +107,7 @@ func TestDelete(t *testing.T) {
 							"q", types.MustNewDocument(
 								"colour", "red",
 							),
-							"limit", int32(1),
+							"limit", int64(1),
 						),
 					),
 				),
@@ -124,7 +124,7 @@ func TestDelete(t *testing.T) {
 							"q", types.MustNewDocument(
 								"animal", "cat",
 							),
-							"limit", int32(0),
+							"limit", float64(0),
 						),
 					),
 				),
@@ -147,7 +147,7 @@ func TestDelete(t *testing.T) {
 				require.NoError(t, err)
 
 				_, resBody, closeConn := h.Handle(ctx, &header, &reqMsg)
-				require.False(t, closeConn)
+				require.False(t, closeConn, "%s", resBody.String())
 
 				actual, err := resBody.(*wire.OpMsg).Document()
 				require.NoError(t, err)

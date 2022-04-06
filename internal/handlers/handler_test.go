@@ -17,10 +17,7 @@ package handlers
 import (
 	"context"
 	"math"
-	"os"
-	"runtime"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -890,7 +887,53 @@ func TestFind(t *testing.T) {
 				),
 			),
 		},
-
+		"FindManyRegexWithOption": {
+			schemas: []string{"values"},
+			req: must.NotFail(types.NewDocument(
+				"find", "values",
+				"filter", must.NotFail(types.NewDocument(
+					"value", types.Regex{Pattern: "foo", Options: "i"},
+				)),
+			)),
+			resp: must.NotFail(types.NewArray(
+				must.NotFail(types.NewDocument(
+					"_id", types.ObjectID{0x61, 0x2e, 0xc2, 0x80, 0x00, 0x00, 0x02, 0x01, 0x00, 0x00, 0x02, 0x01},
+					"name", "string",
+					"value", "foo",
+				)),
+				must.NotFail(types.NewDocument(
+					"_id", types.ObjectID{0x61, 0x2e, 0xc2, 0x80, 0x00, 0x00, 0x04, 0x04, 0x00, 0x00, 0x04, 0x04},
+					"name", "array-three",
+					"value", must.NotFail(types.NewArray(int32(42), "foo", types.Null)),
+				)),
+				must.NotFail(types.NewDocument(
+					"_id", types.ObjectID{0x61, 0x2e, 0xc2, 0x80, 0x00, 0x00, 0x0b, 0x01, 0x00, 0x00, 0x0b, 0x01},
+					"name", "regex",
+					"value", types.Regex{Pattern: "foo", Options: "i"},
+				)),
+			)),
+		},
+		"FindManyRegexWithoutOption": {
+			schemas: []string{"values"},
+			req: must.NotFail(types.NewDocument(
+				"find", "values",
+				"filter", must.NotFail(types.NewDocument(
+					"value", types.Regex{Pattern: "foo"},
+				)),
+			)),
+			resp: must.NotFail(types.NewArray(
+				must.NotFail(types.NewDocument(
+					"_id", types.ObjectID{0x61, 0x2e, 0xc2, 0x80, 0x00, 0x00, 0x02, 0x01, 0x00, 0x00, 0x02, 0x01},
+					"name", "string",
+					"value", "foo",
+				)),
+				must.NotFail(types.NewDocument(
+					"_id", types.ObjectID{0x61, 0x2e, 0xc2, 0x80, 0x00, 0x00, 0x04, 0x04, 0x00, 0x00, 0x04, 0x04},
+					"name", "array-three",
+					"value", must.NotFail(types.NewArray(int32(42), "foo", types.Null)),
+				)),
+			)),
+		},
 		"BitsAllClear": {
 			schemas: []string{"values"},
 			req: must.NotFail(types.NewDocument(
@@ -1196,9 +1239,6 @@ func TestReadOnlyHandlers(t *testing.T) {
 		compareFunc func(t testing.TB, req, expected, actual *types.Document)
 	}
 
-	hostname, err := os.Hostname()
-	require.NoError(t, err)
-
 	testCases := map[string]testCase{
 		"BuildInfo": {
 			req: types.MustNewDocument(
@@ -1465,116 +1505,6 @@ func TestReadOnlyHandlers(t *testing.T) {
 			},
 		},
 
-		"GetLog": {
-			req: types.MustNewDocument(
-				"getLog", "startupWarnings",
-			),
-			resp: types.MustNewDocument(
-				"totalLinesWritten", int32(2),
-				// will be replaced with the real value during the test
-				"log", types.MakeArray(2),
-				"ok", float64(1),
-			),
-			compareFunc: func(t testing.TB, _ *types.Document, actual, expected *types.Document) {
-				// Just testing "ok" response, not the body of the response
-				actualV := testutil.GetByPath(t, actual, "log")
-				testutil.SetByPath(t, expected, actualV, "log")
-				testutil.AssertEqual(t, expected, actual)
-			},
-		},
-
-		"GetParameter": {
-			req: types.MustNewDocument(
-				"getParameter", int32(1),
-			),
-			resp: types.MustNewDocument(
-				"version", "5.0.42",
-				"ok", float64(1),
-			),
-		},
-
-		"ListCommands": {
-			req: types.MustNewDocument(
-				"listCommands", int32(1),
-			),
-			resp: types.MustNewDocument(
-				"commands", types.MustNewDocument(),
-				"ok", float64(1),
-			),
-			compareFunc: func(t testing.TB, _ *types.Document, actual, expected *types.Document) {
-				actualV := testutil.GetByPath(t, actual, "commands")
-				testutil.SetByPath(t, expected, actualV, "commands")
-				testutil.AssertEqual(t, expected, actual)
-			},
-		},
-
-		"IsMaster": {
-			req: types.MustNewDocument(
-				"isMaster", int32(1),
-			),
-			resp: types.MustNewDocument(
-				"helloOk", true,
-				"ismaster", true,
-				"maxBsonObjectSize", int32(16777216),
-				"maxMessageSizeBytes", int32(wire.MaxMsgLen),
-				"maxWriteBatchSize", int32(100000),
-				"localTime", time.Now(),
-				"minWireVersion", int32(13),
-				"maxWireVersion", int32(13),
-				"readOnly", false,
-				"ok", float64(1),
-			),
-			compareFunc: func(t testing.TB, _ *types.Document, actual, expected *types.Document) {
-				testutil.CompareAndSetByPathTime(t, expected, actual, 2*time.Second, "localTime")
-				testutil.AssertEqual(t, expected, actual)
-			},
-		},
-		"Hello": {
-			req: types.MustNewDocument(
-				"hello", int32(1),
-			),
-			resp: types.MustNewDocument(
-				"helloOk", true,
-				"ismaster", true,
-				"maxBsonObjectSize", int32(16777216),
-				"maxMessageSizeBytes", int32(wire.MaxMsgLen),
-				"maxWriteBatchSize", int32(100000),
-				"localTime", time.Now(),
-				"minWireVersion", int32(13),
-				"maxWireVersion", int32(13),
-				"readOnly", false,
-				"ok", float64(1),
-			),
-			compareFunc: func(t testing.TB, _ *types.Document, actual, expected *types.Document) {
-				testutil.CompareAndSetByPathTime(t, expected, actual, 2*time.Second, "localTime")
-				testutil.AssertEqual(t, expected, actual)
-			},
-		},
-
-		"HostInfo": {
-			req: types.MustNewDocument(
-				"hostInfo", int32(1),
-			),
-			resp: types.MustNewDocument(
-				"system", types.MustNewDocument(
-					"currentTime", time.Now(),
-					"hostname", hostname,
-					"cpuAddrSize", int32(strconv.IntSize),
-					"numCores", int32(runtime.NumCPU()),
-					"cpuArch", runtime.GOARCH,
-					"numaEnabled", false,
-				),
-				"os", types.MustNewDocument(
-					"type", strings.Title(runtime.GOOS),
-				),
-				"ok", float64(1),
-			),
-			compareFunc: func(t testing.TB, _ *types.Document, actual, expected *types.Document) {
-				testutil.CompareAndSetByPathTime(t, expected, actual, 2*time.Second, "system", "currentTime")
-				testutil.AssertEqual(t, expected, actual)
-			},
-		},
-
 		"ServerStatus": {
 			req: must.NotFail(types.NewDocument(
 				"serverStatus", int32(1),
@@ -1732,71 +1662,6 @@ func TestListDropDatabase(t *testing.T) {
 		expected := types.MustNewDocument(
 			// no $db
 			"ok", float64(1),
-		)
-		testutil.AssertEqual(t, expected, actual)
-	})
-}
-
-//nolint:paralleltest // we test a global list of collections
-func TestCreateListDropCollection(t *testing.T) {
-	ctx, handler, pool := setup(t, nil)
-	db := testutil.Schema(ctx, t, pool)
-
-	t.Run("nonexisting", func(t *testing.T) {
-		collection := testutil.TableName(t)
-
-		actual := handle(ctx, t, handler, types.MustNewDocument(
-			"create", collection,
-			"$db", db,
-		))
-		expected := types.MustNewDocument(
-			"ok", float64(1),
-		)
-		testutil.AssertEqual(t, expected, actual)
-
-		// TODO test listCollections command once we have better cursor support
-		// https://github.com/FerretDB/FerretDB/issues/79
-
-		tables, err := pool.Tables(ctx, db)
-		require.NoError(t, err)
-		assert.Equal(t, []string{collection}, tables)
-
-		actual = handle(ctx, t, handler, types.MustNewDocument(
-			"drop", collection,
-			"$db", db,
-		))
-		expected = types.MustNewDocument(
-			"nIndexesWas", int32(1),
-			"ns", db+"."+collection,
-			"ok", float64(1),
-		)
-		testutil.AssertEqual(t, expected, actual)
-
-		actual = handle(ctx, t, handler, types.MustNewDocument(
-			"drop", collection,
-			"$db", db,
-		))
-		expected = types.MustNewDocument(
-			"ok", float64(0),
-			"errmsg", "ns not found",
-			"code", int32(26),
-			"codeName", "NamespaceNotFound",
-		)
-		testutil.AssertEqual(t, expected, actual)
-	})
-
-	t.Run("existing", func(t *testing.T) {
-		collection := testutil.CreateTable(ctx, t, pool, db)
-
-		actual := handle(ctx, t, handler, types.MustNewDocument(
-			"create", collection,
-			"$db", db,
-		))
-		expected := types.MustNewDocument(
-			"ok", float64(0),
-			"errmsg", "Collection already exists. NS: testcreatelistdropcollection.testcreatelistdropcollection_existing",
-			"code", int32(48),
-			"codeName", "NamespaceExists",
 		)
 		testutil.AssertEqual(t, expected, actual)
 	})

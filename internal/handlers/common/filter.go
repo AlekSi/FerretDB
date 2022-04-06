@@ -162,8 +162,7 @@ func filterFieldExpr(fieldValue any, expr *types.Document) (bool, error) {
 		switch exprKey {
 		case "$eq":
 			// {field: {$eq: exprValue}}
-			// TODO regex
-			if compareScalars(fieldValue, exprValue) != equal {
+			if compare(fieldValue, exprValue) != equal {
 				return false, nil
 			}
 
@@ -176,7 +175,7 @@ func filterFieldExpr(fieldValue any, expr *types.Document) (bool, error) {
 
 		case "$gt":
 			// {field: {$gt: exprValue}}
-			if c := compareScalars(fieldValue, exprValue); c != greater {
+			if compare(fieldValue, exprValue) != greater {
 				return false, nil
 			}
 
@@ -287,19 +286,35 @@ func filterFieldExpr(fieldValue any, expr *types.Document) (bool, error) {
 	return true, nil
 }
 
-// filterFieldRegex handles {field: /regex/} filter.
+// filterFieldRegex handles {field: /regex/} filter. Provides regular expression capabilities
+// for pattern matching strings in queries, even if the strings are in an array.
 func filterFieldRegex(fieldValue any, regex types.Regex) (bool, error) {
-	s, ok := fieldValue.(string)
-	if !ok {
-		return false, nil
-	}
-
 	re, err := regex.Compile()
 	if err != nil {
 		return false, err
 	}
 
-	return re.MatchString(s), nil
+	switch fieldValue := fieldValue.(type) {
+	case string:
+		return re.MatchString(fieldValue), nil
+
+	case *types.Array:
+		for i := 0; i < fieldValue.Len(); i++ {
+			arrValue := must.NotFail(fieldValue.Get(i)).(any)
+			s, isString := arrValue.(string)
+			if !isString {
+				continue
+			}
+			if re.MatchString(s) == true {
+				return true, nil
+			}
+		}
+
+	case types.Regex:
+		return compareScalars(fieldValue, regex) == equal, nil
+	}
+
+	return false, nil
 }
 
 // filterFieldExprRegex handles {field: {$regex: regexValue, $options: optionsValue}} filter.

@@ -21,23 +21,31 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// Scalars contain scalar values for tests.
+//
+// This shared data set is frozen. If you need more values, add them in the test itself.
 var Scalars = &Values[string]{
 	data: map[string]any{
 		"double":                   42.13,
-		"double-zero":              0.0,
+		"double-whole":             42.0,
+		"double-zero":              0.0, // the same as math.Copysign(0, +1) in Go
 		"double-negative-zero":     math.Copysign(0, -1),
 		"double-max":               math.MaxFloat64,
 		"double-smallest":          math.SmallestNonzeroFloat64,
 		"double-positive-infinity": math.Inf(+1),
 		"double-negative-infinity": math.Inf(-1),
-		// TODO https://github.com/FerretDB/FerretDB/issues/411
-		// "double-nan":               math.NaN(),
+		"double-nan":               math.NaN(),
 
-		"string":       "foo",
-		"string-empty": "",
+		"string":        "foo",
+		"string-double": "42.13",
+		"string-whole":  "42",
+		"string-empty":  "",
 
 		"binary":       primitive.Binary{Subtype: 0x80, Data: []byte{42, 0, 13}},
 		"binary-empty": primitive.Binary{Data: []byte{}},
+
+		"objectid":       primitive.ObjectID{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11},
+		"objectid-empty": primitive.NilObjectID,
 
 		// no Undefined
 

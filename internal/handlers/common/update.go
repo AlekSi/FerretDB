@@ -12,31 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pg
+package common
 
 import (
-	"context"
-
 	"github.com/FerretDB/FerretDB/internal/types"
 	"github.com/FerretDB/FerretDB/internal/util/lazyerrors"
-	"github.com/FerretDB/FerretDB/internal/wire"
+	"github.com/FerretDB/FerretDB/internal/util/must"
 )
 
-// MsgPing OpMsg containing a ping, used to test whether a server is responding to commands.
-func (h *Handler) MsgPing(ctx context.Context, msg *wire.OpMsg) (*wire.OpMsg, error) {
-	if err := h.pgPool.Ping(ctx); err != nil {
-		return nil, err
+// UpdateDocument updates the given document with a series of update operators.
+func UpdateDocument(doc, update *types.Document) error {
+	for _, updateOp := range update.Keys() {
+		updateV := must.NotFail(update.Get(updateOp))
+
+		switch updateOp {
+		case "$set":
+			setDoc, err := AssertType[*types.Document](updateV)
+			if err != nil {
+				return err
+			}
+
+			for _, setKey := range setDoc.Keys() {
+				setValue := must.NotFail(setDoc.Get(setKey))
+				if err = doc.Set(setKey, setValue); err != nil {
+					return lazyerrors.Error(err)
+				}
+			}
+
+		default:
+			return lazyerrors.Errorf("unhandled operation %q", updateOp)
+		}
 	}
 
-	var reply wire.OpMsg
-	err := reply.SetSections(wire.OpMsgSection{
-		Documents: []*types.Document{types.MustNewDocument(
-			"ok", float64(1),
-		)},
-	})
-	if err != nil {
-		return nil, lazyerrors.Error(err)
-	}
-
-	return &reply, nil
+	return nil
 }

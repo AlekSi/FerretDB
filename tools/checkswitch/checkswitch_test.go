@@ -12,20 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package integration
+package main
 
-// compatTestCaseResultType represents compatibility test case result type.
-//
-// It is used to avoid errors with invalid queries making tests pass.
-type compatTestCaseResultType int
+import (
+	"testing"
 
-const (
-	// Test case should return non-empty result.
-	nonEmptyResult compatTestCaseResultType = iota
-
-	// Test case should return empty result.
-	emptyResult
-
-	// Test case should fail.
-	errorResult
+	"golang.org/x/tools/go/analysis/analysistest"
 )
+
+func TestCheckSwitch(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), analyzer)
+}

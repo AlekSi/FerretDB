@@ -12,10 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package integration
+// Package types provides stubs for testing.
+package types
 
-import "testing"
+type Document struct{}
 
-func TestUpdateBitwiseBit(t *testing.T) {
-	// TODO https://github.com/FerretDB/FerretDB/issues/821
-}
+type Array struct{}
+
+type Binary struct{}
+
+type ObjectID struct{}
+
+type NullType struct{}
+
+type Regex struct{}
+
+type Timestamp struct{}

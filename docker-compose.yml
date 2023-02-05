@@ -162,6 +162,14 @@ services:
       - 16686:16686 # UI on http://127.0.0.1:16686/
       - 14268:14268 # to receive spans from clients
 
+  golang:
+    build:
+      context: ./build/deps
+      dockerfile: golang.Dockerfile
+    container_name: ferretdb_golang
+    volumes:
+      - .:/workdir
+
   trivy:
     build:
       context: ./build/deps

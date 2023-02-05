@@ -25,6 +25,13 @@ updates:
       interval: "weekly"
       day: "wednesday"
       time: "01:42"
+  - package-ecosystem: "docker"
+    directory: "/build/docker"
+    labels: [deps]
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "01:42"
 
   - package-ecosystem: "gomod"
     directory: "/"

@@ -177,14 +177,14 @@ services:
       dockerfile: ubuntu2204.Dockerfile
     container_name: ferretdb_ubuntu
     volumes:
-      - ./build/deb:/deb
+      - ./tmp:/workdir
   ubi:
     build:
       context: ./build/deps
       dockerfile: ubi9.Dockerfile
     container_name: ferretdb_ubi
     volumes:
-      - ./build/rpm:/rpm
+      - ./tmp:/workdir
 
   # for documentation
   textlint:

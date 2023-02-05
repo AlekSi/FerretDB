@@ -69,7 +69,7 @@ jobs:
       - name: Archive docs
         run: |
           tar --directory website/build \
-            --file docs.tar \
+            --file tmp/docs.tar \
             --create \
             --verbose \
             .
@@ -78,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: docs
-          path: docs.tar
+          path: tmp/docs.tar
           if-no-files-found: error
 
       - name: Check dirty

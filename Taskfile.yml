@@ -78,7 +78,7 @@ tasks:
       - docker system prune --all --volumes
       - bin/golangci-lint{{exeExt}} cache clean
       - go clean -cache -testcache -modcache -fuzzcache
-      - rm -fr .cache .task tools/.task integration/.task records tmp
+      - rm -fr .cache .task tools/.task integration/.task tmp
       - task: env-pull
       - task: init
 
@@ -177,7 +177,7 @@ tasks:
         -coverprofile=integration-pg.txt .
         -handler=pg
         -postgresql-url=postgres://username@127.0.0.1:5432/ferretdb?pool_min_conns=1
-        -records-dir=../records
+        -records-dir=../tmp/records
         -target-unix-socket
 
   test-integration-tigris:
@@ -188,7 +188,7 @@ tasks:
         go test -count=1 {{.RACEFLAG}} -tags={{.BUILDTAGS}} -shuffle=on -coverpkg=../...
         -coverprofile=integration-tigris.txt .
         -handler=tigris
-        -records-dir=../records
+        -records-dir=../tmp/records
         -target-tls
         -compat-port=37018
         -compat-tls
@@ -202,7 +202,7 @@ tasks:
         -coverprofile=integration-cockroach.txt .
         -handler=pg
         -postgresql-url=postgres://username:password@127.0.0.1:26257/ferretdb?pool_min_conns=1
-        -records-dir=../records
+        -records-dir=../tmp/records
 
   test-integration-mongodb:
     desc: "Run integration tests for MongoDB"
@@ -212,7 +212,7 @@ tasks:
         go test -count=1 {{.RACEFLAG}} -tags={{.BUILDTAGS}} -shuffle=on -coverpkg=../...
         -coverprofile=integration-mongodb.txt .
         -compat-port=0
-        -records-dir=../records
+        -records-dir=../tmp/records
         -target-port=37017
 
   bench-short:
@@ -267,7 +267,7 @@ tasks:
         --mode=diff-normal
         --postgresql-url="postgres://username@127.0.0.1:5432/ferretdb"
         --proxy-addr=127.0.0.1:37017
-        --test-records-dir=records
+        --test-records-dir=tmp/records
 
   run-secured:
     desc: "Run secured FerretDB with TLS and authentication"
@@ -282,7 +282,7 @@ tasks:
         --listen-tls=:27018
         --mode=normal
         --postgresql-url="postgres://127.0.0.1:5433/ferretdb"
-        --test-records-dir=records
+        --test-records-dir=tmp/records
 
   run-tigris:
     deps: [build-local]
@@ -296,7 +296,7 @@ tasks:
         --listen-tls=:27018
         --mode=diff-normal
         --proxy-addr=127.0.0.1:37017
-        --test-records-dir=records
+        --test-records-dir=tmp/records
 
   run-cockroach:
     deps: [build-local]
@@ -310,7 +310,7 @@ tasks:
         --mode=diff-normal
         --postgresql-url=postgres://username:password@127.0.0.1:26257/ferretdb
         --proxy-addr=127.0.0.1:37017
-        --test-records-dir=records
+        --test-records-dir=tmp/records
 
   run-proxy:
     desc: "Run FerretDB in diff-proxy mode"
@@ -325,7 +325,7 @@ tasks:
         --mode=diff-proxy
         --postgresql-url="postgres://username@127.0.0.1:5432/ferretdb"
         --proxy-addr=127.0.0.1:37017
-        --test-records-dir=records
+        --test-records-dir=tmp/records
 
   lint:
     desc: "Run linters"
@@ -455,12 +455,12 @@ tasks:
       - task: packages-rpm
 
   packages-deb:
-    dir: build
+    dir: tmp
     cmds:
-      - ../bin/nfpm{{exeExt}} package --packager=deb --target=deb/ferretdb.deb
+      - ../bin/nfpm{{exeExt}} package --config=../build/nfpm.yaml --packager=deb --target=ferretdb.deb
       - >
         docker compose run --rm ubuntu /bin/sh -c
-        'dpkg -i /deb/ferretdb.deb && ferretdb --version'
+        'dpkg -i /workdir/ferretdb.deb && ferretdb --version'
     env:
       VERSION:
         sh: cat ../build/version/version.txt
@@ -468,12 +468,12 @@ tasks:
         sh: go env GOARCH
 
   packages-rpm:
-    dir: build
+    dir: tmp
     cmds:
-      - ../bin/nfpm{{exeExt}} package --packager=rpm --target=rpm/ferretdb.rpm
+      - ../bin/nfpm{{exeExt}} package --config=../build/nfpm.yaml --packager=rpm --target=ferretdb.rpm
       - >
         docker compose run --rm ubi /bin/sh -c
-        'rpm -i /rpm/ferretdb.rpm && ferretdb --version'
+        'rpm -i /workdir/ferretdb.rpm && ferretdb --version'
     env:
       VERSION:
         sh: cat ../build/version/version.txt

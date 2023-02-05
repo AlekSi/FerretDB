@@ -10,13 +10,9 @@ bin/
 vendor/
 
 # packages, build artifacts, temporary files
-*.deb
-*.rpm
-*.tar
 *.txt
 *.out
 **/testdata/fuzz/
-records/
 state.json
 tmp/
 website/build/

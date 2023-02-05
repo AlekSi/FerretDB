@@ -1,1 +1,1 @@
-// Please do not commit changes in this file.
+// Please do not merge changes in this file.

@@ -21,7 +21,7 @@ tasks:
     desc: "Generate, format, build, test and lint code and documentation"
     cmds:
       - task: gen
-      - task: build-testcover
+      - task: build-local
       - task: test
       - task: lint
       - task: security
@@ -42,12 +42,12 @@ tasks:
     env:
       CGO_ENABLED: 0
 
-  build-testcover:
-    desc: "Build bin/ferretdb-testcover{{exeExt}}"
+  build-local:
+    desc: "Build bin/ferretdb-local{{exeExt}}"
     run: once
     deps: [gen-version]
     cmds:
-      - go test -c -o=bin/ferretdb-testcover{{exeExt}} -trimpath {{.RACEFLAG}} -tags=ferretdb_testcover,{{.BUILDTAGS}} -coverpkg=./... ./cmd/ferretdb
+      - go test -c -o=bin/ferretdb-local{{exeExt}} -trimpath {{.RACEFLAG}} -tags=ferretdb_testcover,{{.BUILDTAGS}} -coverpkg=./... ./cmd/ferretdb
 
   init-tools:
     dir: tools
@@ -259,10 +259,10 @@ tasks:
 
   run:
     desc: "Run FerretDB"
-    deps: [build-testcover]
+    deps: [build-local]
     cmds:
       - >
-        bin/ferretdb-testcover{{exeExt}} -test.coverprofile=cover.txt --
+        bin/ferretdb-local{{exeExt}} -test.coverprofile=cover.txt --
         --listen-addr=:27017
         --mode=diff-normal
         --postgresql-url="postgres://username@127.0.0.1:5432/ferretdb"
@@ -271,10 +271,10 @@ tasks:
 
   run-secured:
     desc: "Run secured FerretDB with TLS and authentication"
-    deps: [build-testcover]
+    deps: [build-local]
     cmds:
       - >
-        bin/ferretdb-testcover{{exeExt}} -test.coverprofile=cover.txt --
+        bin/ferretdb-local{{exeExt}} -test.coverprofile=cover.txt --
         --listen-addr=''
         --listen-tls-cert-file=./build/certs/server-cert.pem
         --listen-tls-key-file=./build/certs/server-key.pem
@@ -285,10 +285,10 @@ tasks:
         --test-records-dir=records
 
   run-tigris:
-    deps: [build-testcover]
+    deps: [build-local]
     cmds:
       - >
-        bin/ferretdb-testcover{{exeExt}} -test.coverprofile=cover.txt --
+        bin/ferretdb-local{{exeExt}} -test.coverprofile=cover.txt --
         --handler=tigris
         --listen-addr=:27017
         --listen-tls-cert-file=./build/certs/server-cert.pem
@@ -299,10 +299,10 @@ tasks:
         --test-records-dir=records
 
   run-cockroach:
-    deps: [build-testcover]
+    deps: [build-local]
     cmds:
       - >
-        bin/ferretdb-testcover{{exeExt}} -test.coverprofile=cover.txt --
+        bin/ferretdb-local{{exeExt}} -test.coverprofile=cover.txt --
         --listen-addr=:27017
         --listen-tls-cert-file=./build/certs/server-cert.pem
         --listen-tls-key-file=./build/certs/server-key.pem
@@ -314,10 +314,10 @@ tasks:
 
   run-proxy:
     desc: "Run FerretDB in diff-proxy mode"
-    deps: [build-testcover]
+    deps: [build-local]
     cmds:
       - >
-        bin/ferretdb-testcover{{exeExt}} -test.coverprofile=cover.txt --
+        bin/ferretdb-local{{exeExt}} -test.coverprofile=cover.txt --
         --listen-addr=:27017
         --listen-tls-cert-file=./build/certs/server-cert.pem
         --listen-tls-key-file=./build/certs/server-key.pem

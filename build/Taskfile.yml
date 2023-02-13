@@ -1,0 +1,33 @@
+---
+# This Taskfile is used inside golang container.
+
+version: 3
+tasks:
+  packages:
+    desc: Build .deb and .rpm packages
+    cmds:
+      - task -d .. init
+      - task: package-deb
+      - task: package-rpm
+
+  package-deb:
+    cmds:
+      - echo 'deb' > version/package.txt
+      - ../bin/task -d .. build-release
+      - ../bin/nfpm package --packager=deb --target=../tmp/ferretdb-$GOARCH.deb
+    env:
+      VERSION:
+        sh: cat version/version.txt
+      GOARCH:
+        sh: go env GOARCH
+
+  package-rpm:
+    cmds:
+      - echo 'rpm' > version/package.txt
+      - ../bin/task -d .. build-release
+      - ../bin/nfpm package --packager=rpm --target=../tmp/ferretdb-$GOARCH.rpm
+    env:
+      VERSION:
+        sh: cat version/version.txt
+      GOARCH:
+        sh: go env GOARCH

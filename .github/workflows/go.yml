@@ -41,7 +41,7 @@ jobs:
         if: false
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # for `git describe` to work
           lfs: false # LFS is used only by website
@@ -91,7 +91,7 @@ jobs:
         if: false
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # for `git describe` to work
           lfs: false # LFS is used only by website
@@ -185,13 +185,19 @@ jobs:
           - { name: "SQLite", task: "sqlite", shard_index: 2, shard_total: 3 }
           - { name: "SQLite", task: "sqlite", shard_index: 3, shard_total: 3 }
 
+          # move that to cron-only workflow
+          # TODO https://github.com/FerretDB/FerretDB/issues/3126
+          - { name: "SQLite", task: "sqlite", shard_index: 1, shard_total: 3, disable_filter_pushdown: true }
+          - { name: "SQLite", task: "sqlite", shard_index: 2, shard_total: 3, disable_filter_pushdown: true }
+          - { name: "SQLite", task: "sqlite", shard_index: 3, shard_total: 3, disable_filter_pushdown: true }
+
     steps:
       - name: Setup permissions monitoring
         uses: GitHubSecurityLab/actions-permissions/monitor@v1
         if: false
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # for `git describe` to work
           lfs: false # LFS is used only by website
@@ -215,7 +221,11 @@ jobs:
         run: bin/task env-setup
 
       - name: Run ${{ matrix.name }} tests (${{ matrix.shard_index }}/${{ matrix.shard_total }})
-        run: bin/task test-integration-${{ matrix.task }} SHARD_INDEX=${{ matrix.shard_index }} SHARD_TOTAL=${{ matrix.shard_total }}
+        run: >
+          bin/task test-integration-${{ matrix.task }}
+          SHARD_INDEX=${{ matrix.shard_index }}
+          SHARD_TOTAL=${{ matrix.shard_total }}
+          DISABLE_FILTER_PUSHDOWN=${{ matrix.disable_filter_pushdown || false }}
         env:
           GOFLAGS: ${{ runner.debug == '1' && '-v' || '' }}
 
@@ -289,7 +299,7 @@ jobs:
         if: false
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # for `git describe` to work
           lfs: false # LFS is used only by website
@@ -335,7 +345,7 @@ jobs:
         if: false
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # for `golangci-lint run --new` to work
           lfs: false # LFS is used only by website
@@ -366,7 +376,7 @@ jobs:
         if: false
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: source
           fetch-depth: 0 # for `git describe` to work
@@ -384,7 +394,7 @@ jobs:
       # Use deploy key instead of Personal Access Token (PAT) to limit access to one repository.
       # If secrets are not available (for example, for a pull request from a fork), GITHUB_TOKEN PAT is used automatically.
       - name: Checkout collected fuzz corpus
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: FerretDB/fuzz-corpus
           ssh-key: ${{ secrets.FUZZ_CORPUS_DEPLOY_KEY }}

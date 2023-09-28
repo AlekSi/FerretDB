@@ -25,6 +25,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 
@@ -44,6 +45,12 @@ const (
 
 	// PostgreSQL table name where FerretDB metadata is stored.
 	metadataTableName = reservedPrefix + "database_metadata"
+)
+
+// Parts of Prometheus metric names.
+const (
+	namespace = "ferretdb"
+	subsystem = "postgresql_metadata"
 )
 
 // Registry provides access to PostgreSQL databases and collections information.
@@ -491,12 +498,6 @@ func (r *Registry) collectionCreate(ctx context.Context, p *pgxpool.Pool, dbName
 		return false, lazyerrors.Error(err)
 	}
 
-	// create PG index for collection name
-	// TODO https://github.com/FerretDB/FerretDB/issues/3375
-
-	// create PG index for table name
-	// TODO https://github.com/FerretDB/FerretDB/issues/3375
-
 	q = fmt.Sprintf(
 		`INSERT INTO %s (%s) VALUES ($1)`,
 		pgx.Identifier{dbName, metadataTableName}.Sanitize(),
@@ -514,6 +515,12 @@ func (r *Registry) collectionCreate(ctx context.Context, p *pgxpool.Pool, dbName
 		r.colls[dbName] = map[string]*Collection{}
 	}
 	r.colls[dbName][collectionName] = c
+
+	// create PG index for collection name
+	// TODO https://github.com/FerretDB/FerretDB/issues/3375
+
+	// create PG index for table name
+	// TODO https://github.com/FerretDB/FerretDB/issues/3375
 
 	return true, nil
 }
@@ -679,3 +686,44 @@ func (r *Registry) CollectionRename(ctx context.Context, dbName, oldCollectionNa
 
 	return true, nil
 }
+
+// Describe implements prometheus.Collector.
+func (r *Registry) Describe(ch chan<- *prometheus.Desc) {
+	prometheus.DescribeByCollect(r, ch)
+}
+
+// Collect implements prometheus.Collector.
+func (r *Registry) Collect(ch chan<- prometheus.Metric) {
+	r.p.Collect(ch)
+
+	r.rw.RLock()
+	defer r.rw.RUnlock()
+
+	ch <- prometheus.MustNewConstMetric(
+		prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, subsystem, "databases"),
+			"The current number of database in the registry.",
+			nil, nil,
+		),
+		prometheus.GaugeValue,
+		float64(len(r.colls)),
+	)
+
+	for db, colls := range r.colls {
+		ch <- prometheus.MustNewConstMetric(
+			prometheus.NewDesc(
+				prometheus.BuildFQName(namespace, subsystem, "collections"),
+				"The current number of collections in the registry.",
+				[]string{"db"}, nil,
+			),
+			prometheus.GaugeValue,
+			float64(len(colls)),
+			db,
+		)
+	}
+}
+
+// check interfaces
+var (
+	_ prometheus.Collector = (*Registry)(nil)
+)

@@ -37,7 +37,7 @@ import (
 func TestCommandCaseSensitive(tt *testing.T) {
 	tt.Parallel()
 
-	t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB-DocumentDB/issues/9")
+	t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB/issues/4773")
 	ctx, collection := setup.Setup(tt)
 
 	db := collection.Database()

@@ -26,6 +26,6 @@ import (
 //
 // The passed context is canceled when the client connection is closed.
 func (h *Handler) MsgDBStats(connCtx context.Context, msg *wire.OpMsg) (*wire.OpMsg, error) {
-	// TODO https://github.com/FerretDB/FerretDB-DocumentDB/issues/9
+	// TODO https://github.com/FerretDB/FerretDB/issues/4773
 	return nil, mongoerrors.New(mongoerrors.ErrNotImplemented, `"dbStats" is not implemented in DocumentDB yet`)
 }

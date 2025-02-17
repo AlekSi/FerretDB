@@ -1487,7 +1487,7 @@ func TestDataSizeCommandErrors(t *testing.T) {
 
 func TestDBStatsCommand(tt *testing.T) {
 	tt.Parallel()
-	t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB-DocumentDB/issues/9")
+	t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB/issues/4773")
 
 	ctx, collection := setup.Setup(tt, shareddata.DocumentsStrings)
 
@@ -1541,7 +1541,7 @@ func TestDBStatsCommand(tt *testing.T) {
 
 func TestDBStatsCommandEmpty(tt *testing.T) {
 	tt.Parallel()
-	t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB-DocumentDB/issues/9")
+	t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB/issues/4773")
 
 	ctx, collection := setup.Setup(tt)
 
@@ -1588,7 +1588,7 @@ func TestDBStatsCommandScale(tt *testing.T) {
 			tt.Helper()
 			tt.Parallel()
 
-			t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB-DocumentDB/issues/9")
+			t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB/issues/4773")
 
 			var actual bson.D
 			command := bson.D{{"dbStats", int32(1)}, {"scale", tc.scale}}
@@ -1642,7 +1642,7 @@ func TestDBStatsCommandScale(tt *testing.T) {
 
 func TestDBStatsCommandScaleEmptyDatabase(tt *testing.T) {
 	tt.Parallel()
-	t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB-DocumentDB/issues/9")
+	t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB/issues/4773")
 
 	ctx, collection := setup.Setup(tt)
 
@@ -1826,7 +1826,7 @@ func TestDBStatsCommandFreeStorage(tt *testing.T) {
 		tt.Run(name, func(tt *testing.T) {
 			tt.Parallel()
 
-			t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB-DocumentDB/issues/9")
+			t := setup.FailsForFerretDB(tt, "https://github.com/FerretDB/FerretDB/issues/4773")
 
 			var actual bson.D
 			err := collection.Database().RunCommand(ctx, tc.command).Decode(&actual)

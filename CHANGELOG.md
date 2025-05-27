@@ -4,8 +4,6 @@
 
 ## [v1.24.2](https://github.com/FerretDB/FerretDB/releases/tag/v1.24.2) (2025-05-27)
 
-## What's Changed
-
 ### Fixed Bugs 🐛
 
 - Ignore `bypassEmptyTsReplacement` to simplify migrations by @chilagrow in https://github.com/FerretDB/FerretDB/pull/5163
